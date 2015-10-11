@@ -2,8 +2,12 @@
 
 `termpdf` is a barebones pdf viewer that relies on [iTerm2's support of inline
 images][] and the [Poppler PDF rendering library][]. It should run fine within
-tmux. I wrote it so that I could view PDF files will working in tmux and
+tmux. I wrote it so that I could view PDF files while working in tmux and
 iTerm2 in fullscreen mode.
+
+It it not especially robust, but it works well enough that I find it useful.
+
+![screenshot](termpdf_screenshot.png)
 
 # Installation
 

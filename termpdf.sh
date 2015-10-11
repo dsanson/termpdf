@@ -101,7 +101,7 @@ function print_help() {
 }
 
 function cli_help() {
-   echo "Usage: $0 [options] path_to_pdf"
+   echo "Usage: termpdf.sh [options] path_to_pdf"
    echo
    echo "   options:"
    echo "      -h|--help: show this help"
@@ -174,7 +174,7 @@ do
        if [ -r "$tmp_file" ] ; then
            print_image "$tmp_file" 1 "$(base64 < "$tmp_file")"
        else
-           error "$0: unable to create the temporary file"
+           error "termpdf: unable to create the temporary file"
            exit 2
        fi
    else
