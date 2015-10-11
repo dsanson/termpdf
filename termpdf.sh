@@ -83,6 +83,11 @@ function get_pane_size() {
     height=$(expr $height - 1 )
 }
 
+function page_limits() {
+   if [ "$n" -le 0 ]; then n=1; fi
+   if [ "$n" -ge "$pages" ]; then n="$pages"; fi
+}
+
 function print_help() {
    clear
    tput cup 0 0
@@ -106,6 +111,7 @@ function cli_help() {
    echo "   options:"
    echo "      -h|--help: show this help"
    echo "      -t|--text: display text instead of images"
+   echo "      -n <int>:    display page number <n>" 
    echo 
    echo "   dependencies:"
    echo "       iTerm2 and poppler (for pdfimages, pdftotext, and pdfinfo)"
@@ -132,6 +138,15 @@ while [ $# -gt 0 ]; do
         -t|--text)
             display="text"
             ;;
+        -n)
+            shift
+            if [[ "$1" != [0-9]* ]]; then
+               echo "Must specify a page number with -n"
+               exit
+            else
+               n="$1"
+            fi
+            ;;
         -*)
             echo "Unknown option: $1"
             cli_help
@@ -140,7 +155,6 @@ while [ $# -gt 0 ]; do
         *)
             if [ -r "$1" ] ; then
                pdf_file="$1" 
-               pages=$(pdfinfo "$pdf_file" | grep "^Pages:" | awk '{print $2}') 
             else
                 echo "$1: No such file or directory"
                 exit
@@ -152,6 +166,12 @@ done
 
 # Check to see that a file was specified on the cli
 if [ ! $pdf_file ]; then cli_help; fi
+
+# How many pages does the PDF file have?
+pages=$(pdfinfo "$pdf_file" | grep "^Pages:" | awk '{print $2}') 
+
+# Ensure that $n is set to a page that exists
+page_limits
 
 # We need the size of the current pane so we can properly size the pdf
 # images
@@ -191,7 +211,11 @@ do
       k)
           n=$(expr $n + 1);; # go forward a page
       g)   
-          read -p "Goto page: " n;; # jump to a page
+          read -p "Goto page: " pn # jump to a page
+          if [[ "$pn" == [0-9]* ]]; then
+             n="$pn"
+          fi
+          ;;
       r)
           get_pane_size # clean up and resize to fit pane
           clear
@@ -230,8 +254,6 @@ do
           rm "$tmp_file"
           exit;;
    esac
-
    # make sure the page we want exists
-   if [ "$n" -le 0 ]; then n=1; fi
-   if [ "$n" -ge "$pages" ]; then n="$pages"; fi
+   page_limits
 done

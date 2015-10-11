@@ -26,6 +26,7 @@ options:
 
 -   `-h` or `--help` to get some help
 -   `-t` or `--text` to display text instead of images
+-   `-n <number>` to open the PDF at a given page number.
 
 While viewing a PDF, the commands are:
 
