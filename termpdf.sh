@@ -327,7 +327,7 @@ do
    tput cup 0 0
 
    read -n 1 -s command # await commands
-   if [[ $command -eq "" ]]; then command="k"; fi
+   if [[ $command == "" ]]; then command="k"; fi
    case "$command" in
       j)
           n=$[$n - 1];; # go back a page
