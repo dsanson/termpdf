@@ -27,7 +27,7 @@ wrap="false" # default is not to pipe text through wrap in text mode
 # default pager is cat. secondary pager is less: a lot more power, but
 # clunky integration with termpdf. 
 text_pagers[0]="cat"
-text_pagers[1]="less -XE"
+text_pagers[1]="less -XFRE"
 # density for PDF conversion. Higher density means sharper images,
 # but might lead to slower performance.
 density=200 
@@ -161,11 +161,16 @@ function convert_pdf_background() {
 
 function display_text() {
    clear
-   pdftotext -f $n -l $n -layout "$pdf_file" - \
-       | egrep --color "$text|\$" \
-       | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
-       | $text_pager 
-   if [[ $text_pager != 'cat' ]]; then echo "---END OF PAGE---"; fi
+   if [[ $text_pager == 'cat' ]]; then
+       pdftotext -f $n -l $n -layout "$pdf_file" - \
+           | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
+           | egrep --color "$text|\$" 
+   else
+       pdftotext -f $n -l $n -layout "$pdf_file" - \
+           | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
+           | egrep --color "$text|\$" \
+           | $text_pager -p$text
+   fi
 }
 
 function check_dependencies() {
@@ -176,7 +181,7 @@ function check_dependencies() {
    done
    }
 
-function print_tttt() {
+function print_help() {
    clear
    tput cup 0 0
    echo "j/k:         page back/forward"
@@ -290,7 +295,7 @@ convert_pdf_background
 
 # display the PDF
 
-while [[ 1 == 1 ]]
+while true
 do
    tput cup 0 1  # we leave a line at the top for commands
 
@@ -301,12 +306,10 @@ do
    fi
    # display
    if [ $display == 'image' ]; then
-       if [ -r "$tmp_file" ] ; then
+       print_image "$tmp_file" 1 "$(base64 < "$tmp_file")" || {
+           convert_pdf $n;
            print_image "$tmp_file" 1 "$(base64 < "$tmp_file")"
-       else
-           convert_pdf $n
-           print_image "$tmp_file" 1 "$(base64 < "$tmp_file")"
-       fi
+       }
    else
        display_text $n
    fi
@@ -320,9 +323,9 @@ do
    read -n 1 -s command # await commands
    case "$command" in
       j)
-          n=$(expr "$n" - 1);; # go back a page
+          n=$[$n - 1];; # go back a page
       k)
-          n=$(expr $n + 1);; # go forward a page
+          let n++ ;; # go forward a page
       g)   
           read -p "Goto page: " pn # jump to a page
           if [[ "$pn" == [0-9]* ]]; then
@@ -375,8 +378,8 @@ do
              echo "No matches"
           fi;;
       n)
-          if [ $index != -1 ] && [ ${results[$(expr $index + 1)]} ]; then
-             index=$(expr $index + 1)
+          if [ $index != -1 ] && [ ${results[$[$index + 1]]} ]; then
+             let index++
              n=${results[$index]} # go to next match
           else
              echo "No matches"
