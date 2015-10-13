@@ -1,7 +1,9 @@
 # README for termpdf
 
 `termpdf` is a barebones inline terminal pdf viewer that relies on [iTerm2's
-support of inline images][].
+support of inline images][]. Inline image support was added in iTerm 2.9,
+so for the moment you will need to install [the beta test release or a nightly
+build](https://iterm2.com/downloads.html).
 
 It works by converting each page of the pdf into a png, using Ghostscript.
 If a pdf happens to already contain one image for each page, it
@@ -44,7 +46,6 @@ to remove the ImageMagick dependency.
 
 # Usage
 
-From the command line, try,
 
 `$ termpdf.sh [options] file.pdf`
 
