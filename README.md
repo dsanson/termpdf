@@ -5,6 +5,10 @@ support of inline images][]. Inline image support was added in iTerm 2.9,
 so for the moment you will need to install [the beta test release or a nightly
 build](https://iterm2.com/downloads.html).
 
+Since it relies on iTerm2, it is Mac only. It shouldn't be hard to add support
+for X11 and framebuffer, using w3m's `w3mimagedisplay` tool, but I don't have
+that installed.
+
 It works by converting each page of the pdf into a png, using Ghostscript.
 If a pdf happens to already contain one image for each page, it
 instead uses [Poppler][]'s `pdfimages` to extract those images.
