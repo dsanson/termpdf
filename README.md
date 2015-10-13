@@ -32,7 +32,7 @@ Dependencies:
 -   Ghostscript (`gs`), ImageMagick (`convert`), Poppler
 (`pdftotext`, `pdfimages`, and `pdfinfo`), and `pdfgrep`
 
-To install these view homebrew, try
+To install these via homebrew, try
 
 ```
 brew install gs imagemagick poppler pdfgrep
