@@ -139,7 +139,9 @@ function convert_pdf() {
                     mv "$tmp_file_root-000.png" "$tmp_file_root-$i.png"
                 fi
                 # generate margin-trimmed version of the page
-                convert -trim "$tmp_file_root-$i.png" "$tmp_file_root-trimmed-$i.png" 2>/dev/null
+                convert -trim "$tmp_file_root-$i.png" \
+                    -bordercolor white -border 20x20 \
+                    "$tmp_file_root-trimmed-$i.png" 2>/dev/null
             fi
         fi
     done
@@ -174,13 +176,16 @@ function check_dependencies() {
    done
    }
 
-function print_help() {
+function print_tttt() {
    clear
    tput cup 0 0
    echo "j/k:         page back/forward"
    echo "g <number>:  go to page number"
    echo "r:           resize and redraw to fit pane"
+   echo "m:           toggle autocropped margins"
    echo "t:           toggle text/image display"
+   echo "p:           toggle pager in text mode" 
+   echo "w:           toggle word-wrapping in text mode"
    echo "y:           yank current page as text to clipboard"
    echo "/ <expr>     go to page with first match for <expr>"
    echo "n:           go to next match for <expr>"
