@@ -74,4 +74,4 @@ While viewing a PDF, the commands are:
 
 
   [iTerm2's support of inline images]: https://iterm2.com/images.html
-  [Poppler PDF rendering library]: http://poppler.freedesktop.org/
+  [Poppler]: http://poppler.freedesktop.org/
