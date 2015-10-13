@@ -144,7 +144,6 @@ function convert_pdf() {
                 convert -trim "$tmp_file_root-$i.png" \
                     -bordercolor white -border 20x20 \
                     "$tmp_file_root-trimmed-$i.png" 2>/dev/null
-            echo "$i converted"
             fi
         fi
     done
