@@ -186,6 +186,7 @@ function print_help() {
    clear
    tput cup 0 0
    echo "j/k:         page back/forward"
+   echo "enter/space: page forward"
    echo "g <number>:  go to page number"
    echo "r:           resize and redraw to fit pane"
    echo "m:           toggle autocropped margins"
@@ -326,6 +327,7 @@ do
    tput cup 0 0
 
    read -n 1 -s command # await commands
+   if [[ $command -eq "" ]]; then command="k"; fi
    case "$command" in
       j)
           n=$[$n - 1];; # go back a page
