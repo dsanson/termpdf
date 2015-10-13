@@ -92,7 +92,9 @@ function print_image() {
 # A simple function that uses pdfgrep to search the pdf
 function find_text() {
   read -p "Find: " text
-  results=( $(pdfgrep -nip "$text" "$pdf_file" | sed 's|:.*||') )
+  if [[ $text != "" ]]; then
+     results=( $(pdfgrep -nip "$text" "$pdf_file" | sed 's|:.*||') )
+ fi
   if [ ${#results[@]} -gt 0 ]; then
      index=0
   else 
@@ -168,8 +170,7 @@ function display_text() {
    else
        pdftotext -f $n -l $n -layout "$pdf_file" - \
            | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
-           | egrep --color "$text|\$" \
-           | $text_pager -p$text
+           | $text_pager $([[ $text ]] && -p$text)
    fi
 }
 
@@ -297,6 +298,8 @@ convert_pdf_background
 
 while true
 do
+   # make sure the page we want exists
+   page_limits
    tput cup 0 1  # we leave a line at the top for commands
 
    if [[ $trimmed == 'true' ]]; then
@@ -313,6 +316,8 @@ do
    else
        display_text $n
    fi
+   # start processing surrounding pages in the background
+   convert_pdf_background
 
    tput cup 0 0 # put the cursor at the top of the pane
    tput el # erase any old stuff from previous commands
@@ -375,6 +380,7 @@ do
           if [[ $index != -1 ]]; then
              n=${results[$index]}
           else
+             tput cup 0 0
              echo "No matches"
           fi;;
       n)
@@ -382,7 +388,8 @@ do
              let index++
              n=${results[$index]} # go to next match
           else
-             echo "No matches"
+             tput cup 0 0
+             echo  "No matches"
           fi;;
       h)
           print_help
@@ -392,7 +399,4 @@ do
           clear
           exit;;
    esac
-   # make sure the page we want exists
-   page_limits
-   convert_pdf_background
 done
