@@ -131,9 +131,9 @@ function convert_gs() {
 # 
 function convert_pdf() {
     for i in "$@"
-    do
-        if [[ $i -le $pages && $i -ge 1 ]]; then
-            if [[ ! -f "${tmp_file_root}-$i.png" ]]; then
+    do       
+        if [[ ! -f "${tmp_file_root}-$i.png" ]]; then
+            if [[ $i -le $pages && $i -ge 1 ]]; then
                 if [[ $use_images == 'false' ]]; then
                     convert_gs "$i"
                 else
@@ -144,6 +144,7 @@ function convert_pdf() {
                 convert -trim "$tmp_file_root-$i.png" \
                     -bordercolor white -border 20x20 \
                     "$tmp_file_root-trimmed-$i.png" 2>/dev/null
+            echo "$i converted"
             fi
         fi
     done
@@ -218,7 +219,6 @@ function requires_poppler() {
     exit
 }
 
-check_dependencies
 
 # Set some defaults
 n=1 # start on page 1
@@ -265,6 +265,7 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+check_dependencies
 
 # Check to see that a file was specified on the cli
 if [ ! -r "$pdf_file" ]; then cli_help; fi
@@ -276,24 +277,13 @@ images=$(pdfimages -list "$pdf_file" | wc | awk '{print $1}')
 images=$[$images - 2]
 if [[ $pages == $images ]]; then use_images='true'; else use_images='false'; fi
 
-# Ensure that $n is set to a page that exists
-page_limits
-
-# We need the size of the current pane so we can properly size the pdf
-# images
-get_pane_size
-
-# Make a tmpfile
+# Make a tmp_dir
 tmp_dir=$(mktemp -d)
 tmp_file_root="${tmp_dir}/tmp"
+
 # clear the pane since we don't always fill it
 clear
 
-# Convert page $n of the PDF
-convert_pdf $n
-
-# Convert surrounding pages in the background 
-convert_pdf_background 
 
 # display the PDF
 
@@ -301,6 +291,13 @@ while true
 do
    # make sure the page we want exists
    page_limits
+   # check the size of the pane
+   get_pane_size
+   # Convert page $n of the PDF
+   convert_pdf $n
+   # Convert surrounding pages in the background 
+   convert_pdf_background 
+
    tput cup 0 1  # we leave a line at the top for commands
 
    if [[ $trimmed == 'true' ]]; then
@@ -317,8 +314,6 @@ do
    else
        display_text $n
    fi
-   # start processing surrounding pages in the background
-   convert_pdf_background
 
    tput cup 0 0 # put the cursor at the top of the pane
    tput el # erase any old stuff from previous commands
