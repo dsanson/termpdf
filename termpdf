@@ -114,8 +114,8 @@ case $ft in
    pdf)
       search_pdf
       ;;
-  djvu)
-      echo "search function not available for djvu files" 
+  djvu|tif|tiff)
+      echo "search function not available for djvu or tif files" 
       ;;
 esac
 }
@@ -143,6 +143,13 @@ case $ft in
         pages=$(djvudump "$input_file" 2>/dev/null \
             | sed -n '2s/.*files //;s/ pages)//p')
         ;;
+    tif|tiff)
+        pages=$(tiffinfo "$input_file" 2>/dev/null \
+            | sed -n 's/ *Page Number:.*-//p' | sed -n '1p')
+        ;;
+     *)
+         echo "no support for $ft"
+         exit
 esac
 }
 
@@ -181,6 +188,9 @@ function convert_page() {
                     djvu)
                         djvups -page=$i "$input_file" \
                             | convert -flatten ps:- "${tmp_file_root}-$i.png"
+                        ;;
+                    tif|tiff)
+                        convert "${input_file}[$[$i - 1]]" "${tmp_file_root}-$i.png"
                         ;;
                 esac
                 # generate margin-trimmed version of the page
@@ -238,6 +248,9 @@ case $ft in
     djvu)
         display_text_djvu
         ;;
+    tif|tiff)
+        echo "Text display not available for tif files"
+        ;;
 esac
 }
 
@@ -255,6 +268,7 @@ function print_help() {
    echo "j/k:         page back/forward"
    echo "enter/space: page forward"
    echo "g <number>:  go to page number"
+   echo "NNN:         go to page number NNN"
    echo "r:           resize and redraw to fit pane"
    echo "m:           toggle autocropped margins"
    echo "t:           toggle text/image display"
