@@ -1,6 +1,6 @@
 # README for termpdf
 
-`termpdf` is a barebones inline terminal pdf viewer that relies on [iTerm2's
+`termpdf` is a barebones inline terminal pdf (and djvu and tif) viewer that relies on [iTerm2's
 support of inline images][]. Inline image support was added in iTerm 2.9,
 so for the moment you will need to install [the beta test release or a nightly
 build](https://iterm2.com/downloads.html).
@@ -11,7 +11,9 @@ that installed.
 
 It works by converting each page of the pdf into a png, using Ghostscript.
 If a pdf happens to already contain one image for each page, it
-instead uses [Poppler][]'s `pdfimages` to extract those images.
+instead uses [Poppler][]'s `pdfimages` to extract those images. djvu files are
+converted to png using dvjulibre's `dvjups` and ImageMagick's `convert`. tiff files are
+converted to png using `convert`. 
 
 It automatically sizes pages to fit within the terminal window (or, within
 `tmux`, the pane).
@@ -37,15 +39,14 @@ Dependencies:
 
 -   Ghostscript (`gs`), ImageMagick (`convert`), Poppler
 (`pdftotext`, `pdfimages`, and `pdfinfo`), and `pdfgrep`
+-   djvulibre for djvu support
 
 To install these via homebrew, try
 
 ```
-brew install gs imagemagick poppler pdfgrep
+brew install gs imagemagick poppler pdfgrep djvulibre
 ```
 
-If you don't need autocropped margins, you can easily hack the script
-to remove the ImageMagick dependency. 
 
 
 # Usage
@@ -63,7 +64,9 @@ While viewing a PDF, the commands are:
 
 ~~~
    j/k:         page back/forward
+   enter/space  page forward
    g <number>:  go to page number
+   NNN:         go to page number NNN
    r:           resize and redraw to fit pane
    m:           toggle autocropped margins
    t:           toggle text/image display

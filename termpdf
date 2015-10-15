@@ -114,12 +114,27 @@ case $ft in
    pdf)
       search_pdf
       ;;
-  djvu|tif|tiff)
+   djvu|tif|tiff)
       echo "search function not available for djvu or tif files" 
       ;;
 esac
 }
 
+# A function for yanking text from current page to clipboard
+function yank_page() {
+case $ft in
+    pdf)
+        pdftotext -f $n -l $n -layout "$input_file" - | pbcopy
+        tput cup 0 0
+        echo "Page copied"
+        ;;
+    djvu)
+        djvutxt -page=$n "$input_file" | pbcopy
+        tput cup 0 0
+        echo "Page copied"
+        ;;
+esac
+}
 # A function for getting the dimensions of the current terminal
 # window or pane.
 function get_pane_size() {
@@ -148,8 +163,8 @@ case $ft in
             | sed -n 's/ *Page Number:.*-//p' | sed -n '1p')
         ;;
      *)
-         echo "no support for $ft"
-         exit
+         pages=1 
+         multipage='false'
 esac
 }
 
@@ -455,9 +470,7 @@ do
           fi
           ;;
       y)
-          pdftotext -f $n -l $n -layout "$input_file" - | pbcopy
-          tput cup 0 0
-          echo "Page copied"
+          yank_page
           ;;
       '/') 
           find_text
