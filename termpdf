@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 ###########################################################################
-# termpdf is a barebones pdf viewer that relies on iTerm2's 
+# termview is a barebones image viewer that relies on iTerm2's 
 # support of inline images:
 # 
 #   https://iterm2.com/images.html
+#
+# termview currently only supports pdf files.
 #
 # To render the pdf into images, we rely on ghostscript and
 # poppler's pdfimages command. To autocrop margins, we rely
@@ -89,17 +91,33 @@ function print_image() {
     printf '\n'
 }
 
-# A simple function that uses pdfgrep to search the pdf
-function find_text() {
+################
+# Text Search
+################
+
+# A simple function that uses pdfgrep to search pdfs
+function search_pdf() {
   read -p "Find: " text
   if [[ $text != "" ]]; then
-     results=( $(pdfgrep -nip "$text" "$pdf_file" | sed 's|:.*||') )
+     results=( $(pdfgrep -nip "$text" "$input_file" | sed 's|:.*||') )
  fi
   if [ ${#results[@]} -gt 0 ]; then
      index=0
   else 
      index=-1
   fi
+}
+
+# A function for finding text using the appropriate tool
+function find_text() {
+case $ft in
+   pdf)
+      search_pdf
+      ;;
+  djvu)
+      echo "search function not available for djvu files" 
+      ;;
+esac
 }
 
 # A function for getting the dimensions of the current terminal
@@ -111,35 +129,60 @@ function get_pane_size() {
     height=$(expr $height - 1 )
 }
 
+#################
+# Pages
+#################
+
+function get_pages() {
+case $ft in
+    pdf)
+        pages=$(pdfinfo "$input_file" 2>/dev/null \
+            | grep "^Pages:" | awk '{print $2}') 
+        ;;
+    djvu)
+        pages=$(djvudump "$input_file" 2>/dev/null \
+            | sed -n '2s/.*files //;s/ pages)//p')
+        ;;
+esac
+}
+
 # A function for validiating page numbers
 function page_limits() {
    if [ "$n" -le 0 ]; then n=1; fi
    if [ "$n" -ge "$pages" ]; then n="$pages"; fi
 }
 
-# Convert a page of the pdf to png. Using gs rather than 
+# Convert a page of a pdf to png. Using gs rather than 
 # convert because it is supposedly faster. Also means that
 # if you don't use the margin trimming feature, you don't need
 # imagemagick.
-function convert_gs() {
+function convert_pdf_gs() {
    gs -dNumRenderingThreads=4 -dNOPAUSE -sDEVICE=png16m \
        -dFirstPage=$1 -dLastPage=$1 \
        -sOutputFile=${tmp_file_root}-$1.png -r$density \
-       -q "${pdf_file}" -c quit 2>/dev/null
+       -q "${input_file}" -c quit 2>/dev/null
 }
 
 # 
-function convert_pdf() {
+function convert_page() {
     for i in "$@"
     do       
         if [[ ! -f "${tmp_file_root}-$i.png" ]]; then
             if [[ $i -le $pages && $i -ge 1 ]]; then
-                if [[ $use_images == 'false' ]]; then
-                    convert_gs "$i"
-                else
-                    pdfimages -png -f $i -l $i "$pdf_file" "$tmp_file_root"
-                    mv "$tmp_file_root-000.png" "$tmp_file_root-$i.png"
-                fi
+                case $ft in
+                    pdf)
+                        if [[ $use_images == 'false' ]]; then
+                            convert_pdf_gs "$i"
+                        else
+                            pdfimages -png -f $i -l $i "$input_file" "$tmp_file_root"
+                            mv "$tmp_file_root-000.png" "$tmp_file_root-$i.png"
+                        fi
+                        ;;
+                    djvu)
+                        djvups -page=$i "$input_file" \
+                            | convert -flatten ps:- "${tmp_file_root}-$i.png"
+                        ;;
+                esac
                 # generate margin-trimmed version of the page
                 convert -trim "$tmp_file_root-$i.png" \
                     -bordercolor white -border 20x20 \
@@ -155,23 +198,47 @@ function convert_pdf_background() {
    k=1
    while ((k<=halo))
    do
-      convert_pdf $[$core + $k] $[$core - $k]
+      convert_page $[$core + $k] $[$core - $k]
       let k++
    done
    )&
 }
 
-function display_text() {
+function display_text_pdf() {
    clear
    if [[ $text_pager == 'cat' ]]; then
-       pdftotext -f $n -l $n -layout "$pdf_file" - \
+       pdftotext -f $n -l $n -layout "$input_file" - \
            | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
            | egrep --color "$text|\$" 
    else
-       pdftotext -f $n -l $n -layout "$pdf_file" - \
+       pdftotext -f $n -l $n -layout "$input_file" - \
            | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
            | $text_pager $([[ $text ]] && -p$text)
    fi
+}
+
+function display_text_djvu() {
+   clear
+   if [[ $text_pager == 'cat' ]]; then
+       djvutxt -page=$n "$input_file" \
+           | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
+           | egrep --color "$text|\$" 
+   else
+       djvutxt -page=$n "$input_file" \
+           | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
+           | $text_pager $([[ $text ]] && -p$text)
+   fi
+}
+
+function display_text() {
+case $ft in
+    pdf)
+        display_text_pdf
+        ;;
+    djvu)
+        display_text_djvu
+        ;;
+esac
 }
 
 function check_dependencies() {
@@ -249,7 +316,8 @@ while [ $# -gt 0 ]; do
             ;;
         *)
             if [ -r "$1" ] ; then
-               pdf_file="$1" 
+               input_file="$1" 
+               ft=${input_file##*.}
             else
                 echo "$1: No such file or directory"
                 exit
@@ -262,14 +330,17 @@ done
 check_dependencies
 
 # Check to see that a file was specified on the cli
-if [ ! -r "$pdf_file" ]; then cli_help; fi
+if [ ! -r "$input_file" ]; then cli_help; fi
 
-# How many pages does the PDF file have?
-pages=$(pdfinfo "$pdf_file" 2>/dev/null | grep "^Pages:" | awk '{print $2}') 
+# How many pages does the file have?
+get_pages
 # Does it look like it has page images?
-images=$(pdfimages -list "$pdf_file" | wc | awk '{print $1}')
-images=$[$images - 2]
-if [[ $pages == $images ]]; then use_images='true'; else use_images='false'; fi
+use_images='false'
+if [[ ft == 'pdf' ]]; then
+    images=$(pdfimages -list "$input_file" | wc | awk '{print $1}')
+    images=$[$images - 2]
+    if [[ $pages == $images ]]; then use_images='true'; fi
+fi
 
 # Make a tmp_dir
 tmp_dir=$(mktemp -d)
@@ -288,7 +359,7 @@ do
    # check the size of the pane
    get_pane_size
    # Convert page $n of the PDF
-   convert_pdf $n
+   convert_page $n
    # Convert surrounding pages in the background 
    convert_pdf_background 
 
@@ -302,7 +373,7 @@ do
    # display
    if [ $display == 'image' ]; then
        print_image "$tmp_file" 1 "$(base64 < "$tmp_file")" || {
-           convert_pdf $n;
+           convert_page $n;
            print_image "$tmp_file" 1 "$(base64 < "$tmp_file")"
        }
    else
@@ -315,7 +386,7 @@ do
    echo "$n"
    tput cup 0 0
 
-   read -n 1 -s command # await commands
+   read -n 1 command # await commands
    if [[ $command == "" ]]; then command="k"; fi
    case "$command" in
       j)
@@ -327,6 +398,14 @@ do
           if [[ "$pn" == [0-9]* ]]; then
              n="$pn"
           fi
+          ;;
+      [0-9])
+          num=$command
+          while read -n 1 -t 0.5 digit # get more digits
+          do
+              num="${num}${digit}"
+          done
+          n=$num
           ;;
       r)
           get_pane_size # clean up and resize to fit pane
@@ -362,7 +441,7 @@ do
           fi
           ;;
       y)
-          pdftotext -f $n -l $n -layout "$pdf_file" - | pbcopy
+          pdftotext -f $n -l $n -layout "$input_file" - | pbcopy
           tput cup 0 0
           echo "Page copied"
           ;;
