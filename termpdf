@@ -30,7 +30,7 @@ text_pagers[0]="cat"
 text_pagers[1]="less -XFRE"
 # density for PDF conversion. Higher density means sharper images,
 # but might lead to slower performance.
-density=200 
+density=300 
 # halo is the number of pages before and after the current page that will
 # be converted in the background.
 halo=2
@@ -211,11 +211,6 @@ function cli_help() {
    echo "      -t|--text:   display text instead of images"
    echo "      -n <int>:    display page number <n>" 
    exit
-}
-
-function requires_poppler() {
-    echo "termpdf requires ghostscript and poppler." 
-    exit
 }
 
 
