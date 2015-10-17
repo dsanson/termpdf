@@ -1,23 +1,24 @@
 #!/usr/bin/env bash
 ###########################################################################
-# termview is a barebones image viewer that relies on iTerm2's 
+# termpdf is a barebones pdf viewer that relies on iTerm2's 
 # support of inline images:
 # 
 #   https://iterm2.com/images.html
 #
-# termview currently only supports pdf files.
+# termpdf currently supports pdf, djvu and tif files.
 #
-# To render the pdf into images, we rely on ghostscript and
-# poppler's pdfimages command. To autocrop margins, we rely
+# To render pdf into images, we rely on ghostscript and
+# poppler's pdfimages command. For djvu, we rely on djvulibre.
+# To autocrop margins, we rely
 # on ImageMagick's convert command. For search, we rely on
 # pdfgrep.
 #
-# You can install ghostscript, poppler, ImageMagick, and pdfgrep
+# You can install ghostscript, poppler, ImageMagick, pdfgrep, and djvulibre
 # via homebrew:
 #
-#   brew install poppler gs imagemagick pdfgrep
+#   brew install poppler gs imagemagick pdfgrep djvulibre
 #
-# termpdf should work inside of tmux.
+# termpdf works inside of tmux.
 #
 ###########################################################################
 
@@ -47,19 +48,19 @@ halo=2
 # <sequence> ST, and for all ESCs in <sequence> to be replaced with ESC ESC. It
 # only accepts ESC backslash for ST.
 function print_osc() {
-    if [[ $TERM == screen* ]] ; then
-        printf "\033Ptmux;\033\033]"
-    else
-        printf "\033]"
-    fi
+if [[ $TERM == screen* ]] ; then
+    printf "\033Ptmux;\033\033]"
+else
+    printf "\033]"
+fi
 }
 
 function print_st() {
-    if [[ $TERM == screen* ]] ; then
-        printf "\a\033\\"
-    else
-        printf "\a"
-    fi
+if [[ $TERM == screen* ]] ; then
+    printf "\a\033\\"
+else
+    printf "\a"
+fi
 }
 
 # This function is also borrowed from imgcat, but I've added support
@@ -70,25 +71,25 @@ function print_st() {
 #   inline: 0 or 1
 #   base64contents: Base64-encoded contents
 function print_image() {
-    print_osc
-    printf '1337;File='
-    if [[ -n "$1" ]]; then
-      printf 'name='`echo -n "$1" | base64`";"
-    fi
-    if $(base64 --version 2>&1 | grep GNU > /dev/null)
-    then
-      BASE64ARG=-d
-    else
-      BASE64ARG=-D
-    fi
-    echo -n "$3" | base64 $BASE64ARG | wc -c | awk '{printf "size=%d",$1}'
-    printf ";inline=$2"
-    printf ";width=$width"
-    printf ";height=$height"
-    printf ":"
-    echo "$3"
-    print_st
-    printf '\n'
+print_osc
+printf '1337;File='
+if [[ -n "$1" ]]; then
+    printf 'name='`echo -n "$1" | base64`";"
+fi
+if $(base64 --version 2>&1 | grep GNU > /dev/null)
+then
+    BASE64ARG=-d
+else
+    BASE64ARG=-D
+fi
+echo -n "$3" | base64 $BASE64ARG | wc -c | awk '{printf "size=%d",$1}'
+printf ";inline=$2"
+printf ";width=$width"
+printf ";height=$height"
+printf ":"
+echo "$3"
+print_st
+printf '\n'
 }
 
 ################
@@ -97,26 +98,26 @@ function print_image() {
 
 # A simple function that uses pdfgrep to search pdfs
 function search_pdf() {
-  read -p "Find: " text
-  if [[ $text != "" ]]; then
-     results=( $(pdfgrep -nip "$text" "$input_file" | sed 's|:.*||') )
- fi
-  if [ ${#results[@]} -gt 0 ]; then
-     index=0
-  else 
-     index=-1
-  fi
+read -p "Find: " text
+if [[ $text != "" ]]; then
+    results=( $(pdfgrep -nip "$text" "$input_file" | sed 's|:.*||') )
+fi
+if [ ${#results[@]} -gt 0 ]; then
+    index=0
+else 
+    index=-1
+fi
 }
 
 # A function for finding text using the appropriate tool
 function find_text() {
 case $ft in
-   pdf)
-      search_pdf
-      ;;
-   djvu|tif|tiff)
-      echo "search function not available for djvu or tif files" 
-      ;;
+    pdf)
+        search_pdf
+        ;;
+    djvu|tif|tiff)
+        echo "search function not available for djvu or tif files" 
+        ;;
 esac
 }
 
@@ -138,10 +139,10 @@ esac
 # A function for getting the dimensions of the current terminal
 # window or pane.
 function get_pane_size() {
-    width=$(tput cols)
-    height=$(stty size | awk '{print $1}')
-    width=$(expr $width - 1)
-    height=$(expr $height - 1 )
+width=$(tput cols)
+height=$(stty size | awk '{print $1}')
+width=$(expr $width - 1)
+height=$(expr $height - 1 )
 }
 
 #################
@@ -162,16 +163,16 @@ case $ft in
         pages=$(tiffinfo "$input_file" 2>/dev/null \
             | sed -n 's/ *Page Number:.*-//p' | sed -n '1p')
         ;;
-     *)
-         pages=1 
-         multipage='false'
+    *)
+        pages=1 
+        multipage='false'
 esac
 }
 
 # A function for validiating page numbers
 function page_limits() {
-   if [ "$n" -le 0 ]; then n=1; fi
-   if [ "$n" -ge "$pages" ]; then n="$pages"; fi
+if [ "$n" -le 0 ]; then n=1; fi
+if [ "$n" -ge "$pages" ]; then n="$pages"; fi
 }
 
 # Convert a page of a pdf to png. Using gs rather than 
@@ -179,80 +180,80 @@ function page_limits() {
 # if you don't use the margin trimming feature, you don't need
 # imagemagick.
 function convert_pdf_gs() {
-   gs -dNumRenderingThreads=4 -dNOPAUSE -sDEVICE=png16m \
-       -dFirstPage=$1 -dLastPage=$1 \
-       -sOutputFile=${tmp_file_root}-$1.png -r$density \
-       -q "${input_file}" -c quit 2>/dev/null
+gs -dNumRenderingThreads=4 -dNOPAUSE -sDEVICE=png16m \
+    -dFirstPage=$1 -dLastPage=$1 \
+    -sOutputFile=${tmp_file_root}-$1.png -r$density \
+    -q "${input_file}" -c quit 2>/dev/null
 }
 
 # 
 function convert_page() {
-    for i in "$@"
-    do       
-        if [[ ! -f "${tmp_file_root}-$i.png" ]]; then
-            if [[ $i -le $pages && $i -ge 1 ]]; then
-                case $ft in
-                    pdf)
-                        if [[ $use_images == 'false' ]]; then
-                            convert_pdf_gs "$i"
-                        else
-                            pdfimages -png -f $i -l $i "$input_file" "$tmp_file_root"
-                            mv "$tmp_file_root-000.png" "$tmp_file_root-$i.png"
-                        fi
-                        ;;
-                    djvu)
-                        djvups -page=$i "$input_file" \
-                            | convert -flatten ps:- "${tmp_file_root}-$i.png"
-                        ;;
-                    tif|tiff)
-                        convert "${input_file}[$[$i - 1]]" "${tmp_file_root}-$i.png"
-                        ;;
-                esac
-                # generate margin-trimmed version of the page
-                convert -trim "$tmp_file_root-$i.png" \
-                    -bordercolor white -border 20x20 \
-                    "$tmp_file_root-trimmed-$i.png" 2>/dev/null
-            fi
+for i in "$@"
+do       
+    if [[ ! -f "${tmp_file_root}-$i.png" ]]; then
+        if [[ $i -le $pages && $i -ge 1 ]]; then
+            case $ft in
+                pdf)
+                    if [[ $use_images == 'false' ]]; then
+                        convert_pdf_gs "$i"
+                    else
+                        pdfimages -png -f $i -l $i "$input_file" "$tmp_file_root"
+                        mv "$tmp_file_root-000.png" "$tmp_file_root-$i.png"
+                    fi
+                    ;;
+                djvu)
+                    djvups -page=$i "$input_file" \
+                        | convert -flatten ps:- "${tmp_file_root}-$i.png"
+                    ;;
+                tif|tiff)
+                    convert "${input_file}[$[$i - 1]]" "${tmp_file_root}-$i.png"
+                    ;;
+            esac
+            # generate margin-trimmed version of the page
+            convert -trim "$tmp_file_root-$i.png" \
+                -bordercolor white -border 20x20 \
+                "$tmp_file_root-trimmed-$i.png" 2>/dev/null
         fi
-    done
+    fi
+done
 }
 
 function convert_pdf_background() {
-   (
-   core=$n
-   k=1
-   while ((k<=halo))
-   do
-      convert_page $[$core + $k] $[$core - $k]
-      let k++
-   done
-   )&
+(
+core=$n
+k=1
+while ((k<=halo))
+do
+    convert_page $[$core + $k] $[$core - $k]
+    let k++
+done
+)&
 }
 
 function display_text_pdf() {
-   clear
-   if [[ $text_pager == 'cat' ]]; then
-       pdftotext -f $n -l $n -layout "$input_file" - \
-           | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
-           | egrep --color "$text|\$" 
-   else
-       pdftotext -f $n -l $n -layout "$input_file" - \
-           | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
-           | $text_pager $([[ $text ]] && -p$text)
-   fi
+clear
+if [[ $text_pager == 'cat' ]]; then
+    pdftotext -f $n -l $n -layout "$input_file" - \
+        | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
+        | egrep --color "$text|\$" 
+else
+    pdftotext -f $n -l $n -layout "$input_file" - \
+        | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
+        | $text_pager $([[ $text ]] && -p$text)
+fi
 }
 
 function display_text_djvu() {
-   clear
-   if [[ $text_pager == 'cat' ]]; then
-       djvutxt -page=$n "$input_file" \
-           | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
-           | egrep --color "$text|\$" 
-   else
-       djvutxt -page=$n "$input_file" \
-           | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
-           | $text_pager $([[ $text ]] && -p$text)
-   fi
+clear
+if [[ $text_pager == 'cat' ]]; then
+    djvutxt -page=$n "$input_file" \
+        | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
+        | egrep --color "$text|\$" 
+else
+    djvutxt -page=$n "$input_file" \
+        | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
+        | $text_pager $([[ $text ]] && -p$text)
+fi
 }
 
 function display_text() {
@@ -270,43 +271,43 @@ esac
 }
 
 function check_dependencies() {
-   for app in gs pdftotext pdfimages pdfgrep pdfinfo convert 
-   do
-      command -v $app >/dev/null 2>&1 ||\
-          { echo >&2 "I require $app but it's not installed."; exit 1; } 
-   done
-   }
+for app in gs pdftotext pdfimages pdfgrep pdfinfo convert 
+do
+    command -v $app >/dev/null 2>&1 ||\
+        { echo >&2 "I require $app but it's not installed."; exit 1; } 
+    done
+}
 
 function print_help() {
-   clear
-   tput cup 0 0
-   echo "j/k:         page back/forward"
-   echo "enter/space: page forward"
-   echo "g <number>:  go to page number"
-   echo "NNN:         go to page number NNN"
-   echo "r:           resize and redraw to fit pane"
-   echo "m:           toggle autocropped margins"
-   echo "t:           toggle text/image display"
-   echo "p:           toggle pager in text mode" 
-   echo "w:           toggle word-wrapping in text mode"
-   echo "y:           yank current page as text to clipboard"
-   echo "/ <expr>     go to page with first match for <expr>"
-   echo "n:           go to next match for <expr>"
-   echo "h:           print this help"
-   echo "q:           quit"
-   read -p "Press any key to return" -n 1 -s dummy
-   if [ $dummy == 'q' ]; then exit; fi
-   clear
+clear
+tput cup 0 0
+echo "j/k:         page back/forward"
+echo "enter/space: page forward"
+echo "g <number>:  go to page number"
+echo "NNN:         go to page number NNN"
+echo "r:           resize and redraw to fit pane"
+echo "m:           toggle autocropped margins"
+echo "t:           toggle text/image display"
+echo "p:           toggle pager in text mode" 
+echo "w:           toggle word-wrapping in text mode"
+echo "y:           yank current page as text to clipboard"
+echo "/ <expr>     go to page with first match for <expr>"
+echo "n:           go to next match for <expr>"
+echo "h:           print this help"
+echo "q:           quit"
+read -p "Press any key to return" -n 1 -s dummy
+if [ $dummy == 'q' ]; then exit; fi
+clear
 }
 
 function cli_help() {
-   echo "Usage: termpdf.sh [options] file.pdf"
-   echo
-   echo "   options:"
-   echo "      -h|--help:   show this help"
-   echo "      -t|--text:   display text instead of images"
-   echo "      -n <int>:    display page number <n>" 
-   exit
+echo "Usage: termpdf.sh [options] file.pdf"
+echo
+echo "   options:"
+echo "      -h|--help:   show this help"
+echo "      -t|--text:   display text instead of images"
+echo "      -n <int>:    display page number <n>" 
+exit
 }
 
 
@@ -332,10 +333,10 @@ while [ $# -gt 0 ]; do
         -n)
             shift
             if [[ "$1" != [0-9]* ]]; then
-               echo "Must specify a page number with -n"
-               exit
+                echo "Must specify a page number with -n"
+                exit
             else
-               n="$1"
+                n="$1"
             fi
             ;;
         -*)
@@ -345,8 +346,8 @@ while [ $# -gt 0 ]; do
             ;;
         *)
             if [ -r "$1" ] ; then
-               input_file="$1" 
-               ft=${input_file##*.}
+                input_file="$1" 
+                ft=${input_file##*.}
             else
                 echo "$1: No such file or directory"
                 exit
@@ -383,117 +384,118 @@ clear
 
 while true
 do
-   # make sure the page we want exists
-   page_limits
-   # check the size of the pane
-   get_pane_size
-   # Convert page $n of the PDF
-   convert_page $n
-   # Convert surrounding pages in the background 
-   convert_pdf_background 
+    # make sure the page we want exists
+    page_limits
+    # check the size of the pane
+    get_pane_size
+    # Convert page $n of the PDF
+    convert_page $n
+    # Convert surrounding pages in the background 
+    convert_pdf_background 
 
-   tput cup 0 1  # we leave a line at the top for commands
+    tput cup 0 1  # we leave a line at the top for commands
 
-   if [[ $trimmed == 'true' ]]; then
-       tmp_file="${tmp_file_root}-trimmed-$n.png"
-   else
-       tmp_file="${tmp_file_root}-$n.png"
-   fi
-   # display
-   if [ $display == 'image' ]; then
-       print_image "$tmp_file" 1 "$(base64 < "$tmp_file")" || {
-           convert_page $n;
-           print_image "$tmp_file" 1 "$(base64 < "$tmp_file")"
-       }
-   else
-       display_text $n
-   fi
+    if [[ $trimmed == 'true' ]]; then
+        tmp_file="${tmp_file_root}-trimmed-$n.png"
+    else
+        tmp_file="${tmp_file_root}-$n.png"
+    fi
+    # display
+    if [ $display == 'image' ]; then
+        print_image "$tmp_file" 1 "$(base64 < "$tmp_file")" || {
+        convert_page $n;
+        print_image "$tmp_file" 1 "$(base64 < "$tmp_file")"
+    }
+else
+    display_text $n
+fi
 
-   tput cup 0 0 # put the cursor at the top of the pane
-   tput el # erase any old stuff from previous commands
-   tput cup 0 $(expr $width - ${#n}) # page num top right
-   echo "$n"
-   tput cup 0 0
+tput cup 0 0 # put the cursor at the top of the pane
+tput el # erase any old stuff from previous commands
+tput cup 0 $(expr $width - ${#n}) # page num top right
+echo "$n"
+tput cup 0 0
 
-   read -n 1 command # await commands
-   if [[ $command == "" ]]; then command="k"; fi
-   case "$command" in
-      j)
-          n=$[$n - 1];; # go back a page
-      k)
-          let n++ ;; # go forward a page
-      g)   
-          read -p "Goto page: " pn # jump to a page
-          if [[ "$pn" == [0-9]* ]]; then
-             n="$pn"
-          fi
-          ;;
-      [0-9])
-          num=$command
-          while read -n 1 -t 0.5 digit # get more digits
-          do
-              num="${num}${digit}"
-          done
-          n=$num
-          ;;
-      r)
-          get_pane_size # clean up and resize to fit pane
-          clear
-          ;;
-      t)
-          if [ $display == "text" ]; then
-              display="image"
-          else
-              display="text"
-          fi
-          clear
-          ;;
-      m)
-          if [ $trimmed == "false" ]; then
-              trimmed="true"
-          else
-              trimmed="false"
-          fi
-          ;;
-      p)
-          if [[ "$text_pager" == "${text_pagers[1]}" ]]; then
-              text_pager="${text_pagers[0]}"
-          else
-              text_pager="${text_pagers[1]}"
-          fi
-          ;;
-       w)
-          if [ $wrap == "true" ]; then
-              wrap="false"
-          else
-              wrap="true"
-          fi
-          ;;
-      y)
-          yank_page
-          ;;
-      '/') 
-          find_text
-          if [[ $index != -1 ]]; then
-             n=${results[$index]}
-          else
-             tput cup 0 0
-             echo "No matches"
-          fi;;
-      n)
-          if [ $index != -1 ] && [ ${results[$[$index + 1]]} ]; then
-             let index++
-             n=${results[$index]} # go to next match
-          else
-             tput cup 0 0
-             echo  "No matches"
-          fi;;
-      h)
-          print_help
-          ;;
-      q)
-          rm -rf "$tmp_dir"
-          clear
-          exit;;
-   esac
+read -n 1 command # await commands
+if [[ $command == "" ]]; then command="k"; fi
+case "$command" in
+    j)
+        n=$[$n - 1];; # go back a page
+    k)
+        let n++ ;; # go forward a page
+    g)   
+        read -p "Goto page: " pn # jump to a page
+        if [[ "$pn" == [0-9]* ]]; then
+            n="$pn"
+        fi
+        ;;
+    [0-9])
+        num=$command
+        while read -n 1 -t 0.5 digit # get more digits
+        do
+            num="${num}${digit}"
+        done
+        n=$num
+        ;;
+    r)
+        get_pane_size # clean up and resize to fit pane
+        clear
+        ;;
+    t)
+        if [ $display == "text" ]; then
+            display="image"
+        else
+            display="text"
+        fi
+        clear
+        ;;
+    m)
+        if [ $trimmed == "false" ]; then
+            trimmed="true"
+        else
+            trimmed="false"
+        fi
+        ;;
+    p)
+        if [[ "$text_pager" == "${text_pagers[1]}" ]]; then
+            text_pager="${text_pagers[0]}"
+        else
+            text_pager="${text_pagers[1]}"
+        fi
+        ;;
+    w)
+        if [ $wrap == "true" ]; then
+            wrap="false"
+        else
+            wrap="true"
+        fi
+        ;;
+    y)
+        yank_page
+        ;;
+    '/') 
+        find_text
+        if [[ $index != -1 ]]; then
+            n=${results[$index]}
+        else
+            tput cup 0 0
+            echo "No matches"
+        fi;;
+    n)
+        if [ $index != -1 ] && [ ${results[$[$index + 1]]} ]; then
+            let index++
+            n=${results[$index]} # go to next match
+        else
+            tput cup 0 0
+            echo  "No matches"
+        fi;;
+    h)
+        print_help
+        ;;
+    q)
+        rm -rf "$tmp_dir"
+        clear
+        exit;;
+esac
 done
+
