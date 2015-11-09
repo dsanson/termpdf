@@ -412,8 +412,8 @@ fi
 
 tput cup 0 0 # put the cursor at the top of the pane
 tput el # erase any old stuff from previous commands
-tput cup 0 $(expr $width - ${#n}) # page num top right
-echo "$n"
+tput cup 0 $(expr $width - ${#n} - ${#pages} - 1) # page num top right
+echo "$n/$pages"
 tput cup 0 0
 
 read -n 1 command # await commands
