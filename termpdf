@@ -1,45 +1,39 @@
 #!/usr/bin/env bash
 ###########################################################################
-# termpdf is a barebones pdf viewer that relies on iTerm2's 
-# support of inline images:
+# termpdf is a barebones in-line graphical pdf viewer for terminals that
+# support in-line graphics.
+#
+# It currently supports pdf, djvu, and tif files.
+#
+# On X11, termpdf uses the w3mimgdisplay program supplied with the w3m 
+# browser. On OSX, termpdf relies on iTerm2's support of inline images 
+# (in iTerm 2.9 or later).
 # 
-#   https://iterm2.com/images.html
-#
-# termpdf currently supports pdf, djvu and tif files.
-#
-# To render pdf into images, we rely on ghostscript and
-# poppler's pdfimages command. For djvu, we rely on djvulibre.
-# To autocrop margins, we rely
-# on ImageMagick's convert command. For search, we rely on
-# pdfgrep.
-#
-# You can install ghostscript, poppler, ImageMagick, pdfgrep, and djvulibre
-# via homebrew:
-#
-#   brew install poppler gs imagemagick pdfgrep djvulibre
-#
-# termpdf works inside of tmux.
-#
 ###########################################################################
-
 
 # SETTINGS
 
-display="image" # default is to display images not text
+# pixel-to-character conversion factors (for X11) 
+y_factor=18
+x_factor=9
+# density for PDF conversion. Higher density means sharper images,
+# but might lead to slower performance.
+density=300 
+
 wrap="false" # default is not to pipe text through wrap in text mode 
 # default pager is cat. secondary pager is less: a lot more power, but
 # clunky integration with termpdf. 
 text_pagers[0]="cat"
 text_pagers[1]="less -XFRE"
-# density for PDF conversion. Higher density means sharper images,
-# but might lead to slower performance.
-density=300 
 # halo is the number of pages before and after the current page that will
 # be converted in the background.
 halo=2
+display="image" # default is to display images not text
 
+##################
+# iTerm2
+#################
 
-#
 # The following two functions are borrowed from the imgcat script at
 # 
 #   https://raw.githubusercontent.com/gnachman/iTerm2/master/tests/imgcat
@@ -70,7 +64,7 @@ fi
 #   filename: Filename to convey to client
 #   inline: 0 or 1
 #   base64contents: Base64-encoded contents
-function print_image() {
+function print_image_iterm() {
 print_osc
 printf '1337;File='
 if [[ -n "$1" ]]; then
@@ -91,6 +85,46 @@ echo "$3"
 print_st
 printf '\n'
 }
+
+##################
+# w3mimgdisplay
+##################
+
+function print_image_w3m() {
+    #get the ratio of width to height for image
+    img_factor=$(convert "$tmp_file" -ping -format "scale=3; %w / %h\n" info: | bc)  
+    #get ratio of width to height for our terminal/tmux pane
+    screen_factor=$(echo "scale=3; ($width * $x_factor) / ($height * $y_factor)" | bc)
+    if [ $(echo "$img_factor < $screen_factor" | bc) == 1 ]; then
+        # set height to max, set width proportional to height
+        h=$[$height * y_factor]
+        w=$(echo "$img_factor * $h" | bc | sed 's/\..*//')
+    else
+        # set width to max, height proportional to width
+        w=$[$width * x_factor]
+        h=$(echo "$w / $img_factor" | bc)
+       echo
+    fi
+    term_px=$(echo -e '\e[14t')
+    term_char=$(echo -e '\e[19t')
+    printf "0;1;0;15;$w;$h;;;;;$tmp_file\n4;\n3;" | w3mimgdisplay
+}
+
+
+
+###################
+# print image
+###################
+
+function print_image() {
+    os=$(uname)
+    if [[ $os == 'Darwin' ]]; then
+        print_image_iterm $@
+    else
+        print_image_w3m $@
+    fi
+}
+
 
 ################
 # Text Search
@@ -318,7 +352,6 @@ results=( )
 index=-1 
 text="$" # null search text for egrep
 trimmed="false" # set to true to default to trim margins
-
 
 # Look for command line flags
 while [ $# -gt 0 ]; do
