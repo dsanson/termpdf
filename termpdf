@@ -117,7 +117,6 @@ function print_image_w3m() {
 ###################
 
 function print_image() {
-    os=$(uname)
     if [[ $os == 'Darwin' ]]; then
         print_image_iterm $@
     else
@@ -305,10 +304,28 @@ esac
 }
 
 function check_dependencies() {
-for app in gs pdftotext pdfimages pdfgrep pdfinfo convert 
+
+case $ft in
+    pdf)
+        dep_list="gs pdftotext pdfimages pdfgrep pdfinfo convert"
+        ;;
+    djvu)
+        dep_list="djvups djvutxt djvudump convert"
+        ;;
+    tif)
+        dep_list="convert"
+        ;;
+esac
+
+os=$(uname)
+if [[ $os != "Darwin" ]]; then
+    dep_list="$dep_list bc w3mimgdisplay"
+fi
+
+for app in $dep_list
 do
     command -v $app >/dev/null 2>&1 ||\
-        { echo >&2 "I require $app but it's not installed."; exit 1; } 
+        { echo >&2 "termpdf requires $app but it's not installed."; exit 1; } 
     done
 }
 
@@ -390,10 +407,10 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-check_dependencies
-
 # Check to see that a file was specified on the cli
 if [ ! -r "$input_file" ]; then cli_help; fi
+
+check_dependencies
 
 # How many pages does the file have?
 get_pages
