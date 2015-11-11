@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#n!/usr/bin/env bash
 ###########################################################################
 # termpdf is a barebones in-line graphical pdf viewer for terminals that
 # support in-line graphics.
@@ -305,7 +305,7 @@ do
                     djvups -page=$i "$input_file" \
                         | convert -flatten ps:- "${tmp_file_root}-$i.png"
                     ;;
-                tif|tiff|ps)
+                tif|tiff)
                     convert -flatten "${input_file}[$[$i - 1]]" "${tmp_file_root}-$i.png"
                     ;;
                 *)
@@ -461,6 +461,12 @@ echo "      -n <int>:    display page number <n>"
 exit
 }
 
+function clean_and_exit() {
+rm -rf "$tmp_dir"
+clear
+exit
+}
+
 function get_window_info() {
 get_pane_size
 if [[ "$os" != "Darwin" ]]; then
@@ -544,6 +550,13 @@ use_images='false'
 # Make a tmp_dir
 tmp_dir=$(mktemp -d)
 tmp_file_root="${tmp_dir}/tmp"
+
+# Postscript? Convert to PDF and relaunch
+if [[ $ft == 'ps' ]]; then
+    ps2pdf "$input_file" "${tmp_dir}/tmp.pdf"
+    $0 "${tmp_dir}/tmp.pdf"
+    clean_and_exit 
+fi
 
 # clear the pane since we don't always fill it
 clear
@@ -669,9 +682,8 @@ case "$command" in
         debug
         ;;
     q)
-        rm -rf "$tmp_dir"
-        clear
-        exit;;
+        clean_and_exit
+        ;;
 esac
 done
 
