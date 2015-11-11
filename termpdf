@@ -11,29 +11,28 @@
 # 
 ###########################################################################
 
+###########################################################################
 # SETTINGS
-
-# pixel-to-character conversion factors (for X11) 
-y_factor=18
-x_factor=9
-# density for PDF conversion. Higher density means sharper images,
-# but might lead to slower performance.
-density=300 
-
+#
+density=300 # set higher for sharper images (but a performance hit) 
+#
+display="image" # if you want to display text by default, set this to "text" 
+#
+text_conversion_method=pdftotext
+#
 wrap="false" # default is not to pipe text through wrap in text mode 
-# default pager is cat. secondary pager is less: a lot more power, but
-# clunky integration with termpdf. 
-text_pagers[0]="cat"
-text_pagers[1]="less -XFRE"
-# halo is the number of pages before and after the current page that will
-# be converted in the background.
-halo=2
-display="image" # default is to display images not text
+#
+text_pagers[0]="cat" # default pager is 'cat'
+#
+text_pagers[1]="less -XFRE" # secondary pager is 'less'
+#
+halo=2 # number of pages out to convert in the background
+#
+###########################################################################
 
-##################
-# iTerm2
-#################
-
+###########################################################################
+# Functions for displaying images in iTerm2
+#
 # The following two functions are borrowed from the imgcat script at
 # 
 #   https://raw.githubusercontent.com/gnachman/iTerm2/master/tests/imgcat
@@ -43,9 +42,9 @@ display="image" # default is to display images not text
 # only accepts ESC backslash for ST.
 function print_osc() {
 if [[ $TERM == screen* ]] ; then
-    printf "\033Ptmux;\033\033]"
+    printf "\033Ptmux;\033\033"
 else
-    printf "\033]"
+    printf "\033"
 fi
 }
 
@@ -66,7 +65,7 @@ fi
 #   base64contents: Base64-encoded contents
 function print_image_iterm() {
 print_osc
-printf '1337;File='
+printf ']1337;File='
 if [[ -n "$1" ]]; then
     printf 'name='`echo -n "$1" | base64`";"
 fi
@@ -85,10 +84,68 @@ echo "$3"
 print_st
 printf '\n'
 }
+#
+###########################################################################
 
-##################
-# w3mimgdisplay
-##################
+###########################################################################
+# Functions for displaying images using w3mimgdisplay
+#
+#
+# function that gets important info about merm windows 
+#
+function get_xterm_info() { 
+# move cursor to to left corner
+tput cup 2 2 # but not 0 0, because that often breaks in tmux
+
+# use escape codes to get window dimensions and cursor position
+exec < /dev/tty
+oldstty=$(stty -g)
+stty raw -echo min 0 
+print_osc > /dev/tty
+printf "[14t" > /dev/tty # win size in pixels
+print_st > /dev/tty
+read -sr px_dim # win size in pixels
+print_osc > /dev/tty
+printf "[18t" > /dev/tty # win size in characters
+print_st > /dev/tty
+read char_dim # win size in characters
+print_osc > /dev/tty
+printf "[6n" > /dev/tty # cursor position in characters
+print_st > /dev/tty
+read curs_pos
+stty $oldstty
+
+# process the output
+# window dimension in pixels
+px_dim=${px_dim:2}
+px_y=$(echo "$px_dim" | awk -F ';' '{print $2}')
+px_x=$(echo "$px_dim" | awk -F ';' '{print $3}')
+px_x=${px_x%?}
+# window dimension in characters
+char_dim=${char_dim:2}
+char_y=$(echo "$char_dim" | awk -F ';' '{print $2}')
+char_x=$(echo "$char_dim" | awk -F ';' '{print $3}')
+char_x=${char_x%?}
+# cursor position in characters
+# (we need this to position images within tmux panes)
+curs_pos=${curs_pos:2}
+curs_y=$(echo "$curs_pos" | awk -F ';' '{print $1}')
+curs_x=$(echo "$curs_pos" | awk -F ';' '{print $2}')
+curs_x=${curs_x%?}
+curs_x=$[$curs_x - 2]
+curs_y=$[$curs_y - 2]
+}
+
+function get_xterm_font_factors() {
+x_factor=$(echo "$px_x / ( $char_x + 1)" | bc)
+y_factor=$(echo "$px_y / ( $char_y + 1)" | bc)
+}
+
+# get xterm position in pixels
+function get_xterm_position() {
+x_pos=$(echo "$curs_x * $x_factor" | bc)
+y_pos=$(echo "$curs_y * $y_factor" | bc)
+}
 
 function print_image_w3m() {
     #get the ratio of width to height for image
@@ -105,17 +162,16 @@ function print_image_w3m() {
         h=$(echo "$w / $img_factor" | bc)
        echo
     fi
-    term_px=$(echo -e '\e[14t')
-    term_char=$(echo -e '\e[19t')
-    printf "0;1;0;15;$w;$h;;;;;$tmp_file\n4;\n3;" | w3mimgdisplay
+    printf "0;1;$x_pos;$y_pos;$w;$h;;;;;$tmp_file\n4;\n3;" | w3mimgdisplay
 }
 
 
+###########################################################################
 
-###################
-# print image
-###################
 
+###########################################################################
+# Function for displaying images, depending on OS
+#
 function print_image() {
     if [[ $os == 'Darwin' ]]; then
         print_image_iterm $@
@@ -123,11 +179,12 @@ function print_image() {
         print_image_w3m $@
     fi
 }
+#
+###########################################################################
 
 
-################
-# Text Search
-################
+###########################################################################
+# Functions for searching, yanking, text within documents 
 
 # A simple function that uses pdfgrep to search pdfs
 function search_pdf() {
@@ -169,6 +226,11 @@ case $ft in
         ;;
 esac
 }
+#
+###########################################################################
+
+
+###########################################################################
 # A function for getting the dimensions of the current terminal
 # window or pane.
 function get_pane_size() {
@@ -177,11 +239,11 @@ height=$(stty size | awk '{print $1}')
 width=$(expr $width - 1)
 height=$(expr $height - 1 )
 }
+###########################################################################
 
-#################
-# Pages
-#################
-
+###########################################################################
+# Functions for dealing with pages
+#
 function get_pages() {
 case $ft in
     pdf)
@@ -207,7 +269,12 @@ function page_limits() {
 if [ "$n" -le 0 ]; then n=1; fi
 if [ "$n" -ge "$pages" ]; then n="$pages"; fi
 }
+#
+###########################################################################
 
+###########################################################################
+# Image conversion functions
+#
 # Convert a page of a pdf to png. Using gs rather than 
 # convert because it is supposedly faster. Also means that
 # if you don't use the margin trimming feature, you don't need
@@ -238,8 +305,11 @@ do
                     djvups -page=$i "$input_file" \
                         | convert -flatten ps:- "${tmp_file_root}-$i.png"
                     ;;
-                tif|tiff)
-                    convert "${input_file}[$[$i - 1]]" "${tmp_file_root}-$i.png"
+                tif|tiff|ps)
+                    convert -flatten "${input_file}[$[$i - 1]]" "${tmp_file_root}-$i.png"
+                    ;;
+                *)
+                    convert "${input_file}" "${tmp_file_root}-$i.png"
                     ;;
             esac
             # generate margin-trimmed version of the page
@@ -262,15 +332,35 @@ do
 done
 )&
 }
+#
+###########################################################################
 
+###########################################################################
+# Text Conversion and Display functions
+#
+function convert_pdf_to_text() {
+case $1 in
+    pdftotext)
+        pdftotext -f $n -l $n -layout "$input_file" -
+        ;;
+    html-pandoc)
+        pdftohtml -f $n -l $n -i -noframes "$input_file" -stdout \
+            | pandoc -f html -t plain --no-wrap
+        ;;
+esac
+}
+        
 function display_text_pdf() {
 clear
+
+text_conversion_method="pdftotext"
+
 if [[ $text_pager == 'cat' ]]; then
-    pdftotext -f $n -l $n -layout "$input_file" - \
+    convert_pdf_to_text $text_conversion_method \
         | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
         | egrep --color "$text|\$" 
 else
-    pdftotext -f $n -l $n -layout "$input_file" - \
+    $pdf_to_text_command \
         | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
         | $text_pager $([[ $text ]] && -p$text)
 fi
@@ -301,6 +391,15 @@ case $ft in
         echo "Text display not available for tif files"
         ;;
 esac
+}
+#
+###########################################################################
+
+###########################################################################
+# Miscellaneous functions
+#
+function refresh_file() {
+rm "${tmp_dir}/tmp"*
 }
 
 function check_dependencies() {
@@ -336,7 +435,8 @@ echo "j/k:         page back/forward"
 echo "enter/space: page forward"
 echo "g <number>:  go to page number"
 echo "NNN:         go to page number NNN"
-echo "r:           resize and redraw to fit pane"
+echo "r:           refresh (resize and redraw)"
+echo "R:           reload document"
 echo "m:           toggle autocropped margins"
 echo "t:           toggle text/image display"
 echo "p:           toggle pager in text mode" 
@@ -361,7 +461,25 @@ echo "      -n <int>:    display page number <n>"
 exit
 }
 
+function get_window_info() {
+get_pane_size
+if [[ "$os" != "Darwin" ]]; then
+    get_xterm_info
+    get_xterm_font_factors
+    get_xterm_position
+fi
+}
 
+function debug() {
+return
+}
+
+#
+###########################################################################
+
+###########################################################################
+# Main program
+#
 # Set some defaults
 n=1 # start on page 1
 text_pager=${text_pagers[0]}
@@ -369,6 +487,7 @@ results=( )
 index=-1 
 text="$" # null search text for egrep
 trimmed="false" # set to true to default to trim margins
+
 
 # Look for command line flags
 while [ $# -gt 0 ]; do
@@ -416,11 +535,11 @@ check_dependencies
 get_pages
 # Does it look like it has page images?
 use_images='false'
-if [[ ft == 'pdf' ]]; then
-    images=$(pdfimages -list "$input_file" | wc | awk '{print $1}')
-    images=$[$images - 2]
-    if [[ $pages == $images ]]; then use_images='true'; fi
-fi
+# if [[ ft == 'pdf' ]]; then
+#     images=$(pdfimages -list "$input_file" | wc | awk '{print $1}')
+#     images=$[$images - 2]
+#     if [[ $pages == $images ]]; then use_images='true'; fi
+# fi
 
 # Make a tmp_dir
 tmp_dir=$(mktemp -d)
@@ -430,14 +549,14 @@ tmp_file_root="${tmp_dir}/tmp"
 clear
 
 
-# display the PDF
+# display the document 
 
 while true
 do
     # make sure the page we want exists
     page_limits
-    # check the size of the pane
-    get_pane_size
+    # check the size of the pane, window, etc
+    get_window_info
     # Convert page $n of the PDF
     convert_page $n
     # Convert surrounding pages in the background 
@@ -488,7 +607,11 @@ case "$command" in
         n=$num
         ;;
     r)
-        get_pane_size # clean up and resize to fit pane
+        get_window_info # clean up and resize to fit pane
+        clear
+        ;;
+    R)
+        refresh_file # reload file 
         clear
         ;;
     t)
@@ -541,6 +664,9 @@ case "$command" in
         fi;;
     h)
         print_help
+        ;;
+    d)
+        debug
         ;;
     q)
         rm -rf "$tmp_dir"
