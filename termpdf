@@ -707,6 +707,7 @@ case "$command" in
         refresh_file
         if [[ $split == "true" ]]; then
             split="false"
+            n=${n%B}
         else
             split="true"
         fi
