@@ -33,16 +33,19 @@ the appropriate permissions (i.e., `chmod u+x termpdf`).
 Dependencies:
 
 -   w3m (for X11) or iTerm2 2.9 or greater (for OS X)
--   Ghostscript, ImageMagick, Poppler, `pdfgrep`, djvulibre
+-   Ghostscript, ImageMagick, Poppler, `pdfgrep`, djvulibre,
+    [selecta](https://github.com/garybernhardt/selecta)
 
 On OSX, install these via homebrew with
 
-    brew install gs imagemagick poppler pdfgrep djvulibre
+    brew install gs imagemagick poppler pdfgrep djvulibre selecta
 
-On Ubuntu, install via apt-get with
+On Ubuntu, you will need to download selecta and put it in your path.
+Everything else can be installed via apt-get with
 
     sudo apt-get install ghostscript imagemagick poppler-utils pdfgrep
     djvulibre-bin w3m-img
+
 
 w3mimgdisplay (X11 only)
 ========================
