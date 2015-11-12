@@ -60,15 +60,18 @@ symbolic link in `/usr/local/bin`:
 Usage
 =====
 
-`$ termpdf.sh [options] file.pdf`
+```.bash
+$ termpdf [options] file`
 
-options:
+    -h or --help to get some help
+    -t or --text to display text instead of images
+    -n <number> to open the PDF at a given page number.
+```
 
--   `-h` or `--help` to get some help
--   `-t` or `--text` to display text instead of images
--   `-n <number>` to open the PDF at a given page number.
+File type is determined by extension ('pdf', 'djvu', 'tif', 'tiff', or 'png').
+But any image files that Imagemagick can convert to png should be displayed.
 
-While viewing a PDF, the default key commands are:
+While viewing a file, the default key commands are:
 
        j/k:         page back/forward
        enter/space  page forward
