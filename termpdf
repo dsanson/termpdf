@@ -211,10 +211,23 @@ function print_image() {
 # Functions for searching, yanking, text within documents 
 
 # A simple function that uses pdfgrep to search pdfs
-function search_pdf() {
+function search_pdf_old() {
 read -p "Find: " text
 if [[ $text != "" ]]; then
     results=( $(pdfgrep -nip "$text" "$input_file" | sed 's|:.*||') )
+fi
+if [ ${#results[@]} -gt 0 ]; then
+    index=0
+else 
+    index=-1
+fi
+}
+
+# A simple function that uses pdfgrep to search pdfs
+function search_pdf() {
+read -p "Find: " text
+if [[ $text != "" ]]; then
+    IFS=$'\n' results=( $(pdfgrep -niC $[$width - 10] "$text" "$input_file") )
 fi
 if [ ${#results[@]} -gt 0 ]; then
     index=0
@@ -714,7 +727,7 @@ case "$command" in
     ${keys["search"]}) 
         find_text
         if [[ $index != -1 ]]; then
-            n=${results[$index]}
+            n=${results[$index]%%:*}
         else
             tput cup 0 0
             echo "No matches"
@@ -722,7 +735,16 @@ case "$command" in
     ${keys["next-match"]})
         if [ $index != -1 ] && [ ${results[$[$index + 1]]} ]; then
             let index++
-            n=${results[$index]} # go to next match
+            n=${results[$index]%%:*} # go to next match
+        else
+            tput cup 0 0
+            echo  "No matches"
+        fi
+        ;;
+    ${keys["previous-match"]})
+        if [ $index != -1 ] && [ ${results[$[$index - 1]]} ]; then
+            index=$[$index - 1]
+            n=${results[$index]%%:*} # go to previous match
         else
             tput cup 0 0
             echo  "No matches"
