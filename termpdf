@@ -49,6 +49,7 @@ keys=(
   ["next-match"]="n"
   ["previous-match"]="N"
   ["help"]="\?"
+  ["debug"]="d"
   ["quit"]="q"
 )
 ###########################################################################
@@ -386,7 +387,7 @@ if [[ $text_pager == 'cat' ]]; then
         | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
         | egrep --color "$text|\$" 
 else
-    $pdf_to_text_command \
+    convert_pdf_to_text $text_conversion_method \
         | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
         | $text_pager $([[ $text ]] && -p$text)
 fi
@@ -688,7 +689,6 @@ case "$command" in
         else
             text_pager="${text_pagers[1]}"
         fi
-        echo $text_pager
         ;;
     ${keys["vertical-split"]})
         refresh_file
