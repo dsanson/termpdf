@@ -269,8 +269,8 @@ esac
 
 # A function for validiating page numbers
 function page_limits() {
-if [ "$n" -le 0 ]; then n=1; fi
-if [ "$n" -ge "$pages" ]; then n="$pages"; fi
+if [ "${n%B}" -le 0 ]; then n=1; fi
+if [ "${n%B}" -ge "$pages" ]; then n="$pages"; fi
 }
 #
 ###########################################################################
@@ -278,15 +278,15 @@ if [ "$n" -ge "$pages" ]; then n="$pages"; fi
 ###########################################################################
 # Image conversion functions
 #
-# Convert a page of a pdf to png. Using gs rather than 
-# convert because it is supposedly faster. Also means that
-# if you don't use the margin trimming feature, you don't need
-# imagemagick.
-function convert_pdf_gs() {
-gs -dNumRenderingThreads=4 -dNOPAUSE -sDEVICE=png16m \
-    -dFirstPage=$1 -dLastPage=$1 \
-    -sOutputFile=${tmp_file_root}-$1.png -r$density \
-    -q "${input_file}" -c quit 2>/dev/null
+
+function convert_pdf_cairo() {
+pdftocairo -f $1 -l $1 -png -singlefile "$input_file" "${tmp_file_root}-$1"
+if [[ $split == 'true' ]]; then
+    convert -crop '50%x100%' +repage \
+        ${tmp_file_root}-$1.png ${tmp_file_root}-$1-%d.png 
+    mv ${tmp_file_root}-$1-0.png ${tmp_file_root}-$1.png
+    mv ${tmp_file_root}-$1-1.png ${tmp_file_root}-$1B.png
+fi
 }
 
 # 
@@ -297,7 +297,7 @@ do
         if [[ $i -le $pages && $i -ge 1 ]]; then
             case $ft in
                 pdf)
-                    convert_pdf_gs "$i"
+                    convert_pdf_cairo "$i"
                     ;;
                 djvu)
                     djvups -page=$i "$input_file" \
@@ -317,6 +317,11 @@ do
             convert -trim "$tmp_file_root-$i.png" \
                 -bordercolor white -border 20x20 \
                 "$tmp_file_root-trimmed-$i.png" 2>/dev/null
+            if [[ "$split" == "true" ]]; then
+                convert -trim "$tmp_file_root-$iB.png" \
+                -bordercolor white -border 20x20 \
+                "$tmp_file_root-trimmed-$iB.png" 2>/dev/null
+            fi
         fi
     fi
 done
@@ -324,7 +329,7 @@ done
 
 function convert_pdf_background() {
 (
-core=$n
+core=${n%B}
 k=1
 while ((k<=halo))
 do
@@ -446,6 +451,7 @@ echo "r:           refresh (resize and redraw)"
 echo "R:           reload document"
 echo "m:           toggle autocropped margins"
 echo "t:           toggle text/image display"
+echo "s:           split pages"
 echo "p:           print document"
 echo "l:           toggle pager in text mode" 
 echo "w:           toggle word-wrapping in text mode"
@@ -603,9 +609,21 @@ read -n 1 command # await commands
 if [[ $command == "" ]]; then command="k"; fi
 case "$command" in
     j)
-        n=$[$n - 1];; # go back a page
+        if [[ $n =~ B$ ]]; then
+            n=${n%B}
+        else
+            n=$[$n - 1]
+        fi
+        ;; # go back a page
     k)
-        let n++ ;; # go forward a page
+        if [[ $n =~ B$ ]]; then
+            n=$[${n%B} + 1]
+        elif [[ $split == "true" ]]; then
+            n="${n}B"
+        else
+            let n++
+        fi
+        ;;
     g)   
         read -p "Goto page: " pn # jump to a page
         if [[ "$pn" == [0-9]* ]]; then
@@ -648,6 +666,16 @@ case "$command" in
             text_pager="${text_pagers[0]}"
         else
             text_pager="${text_pagers[1]}"
+        fi
+        ;;
+    s)
+        refresh_file
+        if [[ $split == "true" ]]; then
+            split="false"
+            halo=$[$halo / 2]
+        else
+            split="true"
+            halo=$[$halo * 2]
         fi
         ;;
     p)
