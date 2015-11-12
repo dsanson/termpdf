@@ -4,6 +4,8 @@ README for termpdf
 `termpdf` is a barebones inline graphical PDF (and DJVU and TIF) viewer for
 terminals that support inline graphics.
 
+![screencast](screencast.gif)
+
 On OS X, it works with iTerm 2.9 or later (so for the moment you will need to
 install [the beta test release or a nightly build]). On X11, it should work
 with any terminal that supports inline images in the w3m browser (I have
