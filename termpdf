@@ -297,12 +297,7 @@ do
         if [[ $i -le $pages && $i -ge 1 ]]; then
             case $ft in
                 pdf)
-                    if [[ $use_images == 'false' ]]; then
-                        convert_pdf_gs "$i"
-                    else
-                        pdfimages -png -f $i -l $i "$input_file" "$tmp_file_root"
-                        mv "$tmp_file_root-000.png" "$tmp_file_root-$i.png"
-                    fi
+                    convert_pdf_gs "$i"
                     ;;
                 djvu)
                     djvups -page=$i "$input_file" \
@@ -418,7 +413,7 @@ function check_dependencies() {
 
 case $ft in
     pdf)
-        dep_list="gs pdftotext pdfimages pdfgrep pdfinfo convert"
+        dep_list="gs pdftotext pdfgrep pdfinfo convert"
         ;;
     djvu)
         dep_list="djvups djvutxt djvudump convert"
@@ -552,13 +547,6 @@ check_dependencies
 
 # How many pages does the file have?
 get_pages
-# Does it look like it has page images?
-use_images='false'
-# if [[ ft == 'pdf' ]]; then
-#     images=$(pdfimages -list "$input_file" | wc | awk '{print $1}')
-#     images=$[$images - 2]
-#     if [[ $pages == $images ]]; then use_images='true'; fi
-# fi
 
 # Make a tmp_dir
 tmp_dir=$(mktemp -d)
