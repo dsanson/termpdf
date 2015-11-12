@@ -40,7 +40,8 @@ keys=(
   ["reload-document"]="R"
   ["crop-margins"]="m"
   ["text"]="t"
-  ["vertical-split"]="s"
+  ["horizontal-split"]="s"
+  ["vertical-split"]="v"
   ["print"]="p"
   ["pager-toggle"]="l"
   ["wrap-toggle"]="w"
@@ -48,7 +49,7 @@ keys=(
   ["search"]="/"
   ["next-match"]="n"
   ["previous-match"]="N"
-  ["help"]="\?"
+  ["help"]="?"
   ["debug"]="d"
   ["quit"]="q"
 )
@@ -315,8 +316,10 @@ if [ "${n%B}" -ge "$pages" ]; then n="$pages"; fi
 
 function convert_pdf_cairo() {
 pdftocairo -f $1 -l $1 -png -singlefile "$input_file" "${tmp_file_root}-$1"
-if [[ $split == 'true' ]]; then
-    convert -crop '50%x100%' +repage \
+if [[ $split == 'vert' || $split == 'horiz' ]]; then
+    if [[ $split == 'vert' ]]; then geo='50%x100%'; fi
+    if [[ $split == 'horiz' ]]; then geo='100%x50%'; fi
+    convert -crop $geo +repage \
         ${tmp_file_root}-$1.png ${tmp_file_root}-$1-%d.png 
     mv ${tmp_file_root}-$1-0.png ${tmp_file_root}-$1.png
     mv ${tmp_file_root}-$1-1.png ${tmp_file_root}-$1B.png
@@ -355,7 +358,7 @@ do
             convert -trim "$tmp_file_root-$i.png" \
                 -bordercolor white -border 20x20 \
                 "$tmp_file_root-trimmed-$i.png" 2>/dev/null
-            if [[ "$split" == "true" ]]; then
+            if [[ "$split" == "vert" || $split == "horiz" ]]; then
                 convert -trim "$tmp_file_root-$iB.png" \
                 -bordercolor white -border 20x20 \
                 "$tmp_file_root-trimmed-$iB.png" 2>/dev/null
@@ -488,16 +491,17 @@ echo "NNN:         go to page number NNN"
 echo "${keys['search']} <expr>:    go to page with first match for <expr>"
 echo "${keys['next-match']}:           go to next match for <expr>"
 #echo "${keys['previous-match']}:           go to previous match for <expr>"
-echo "${keys['refresh-view']}:           refresh (resize and redraw)"
+echo "${keys['refresh-view']}:           refresh display"
 echo "${keys['reload-document']}:           reload document"
 echo "${keys['crop-margins']}:           toggle autocropped margins"
 echo "${keys['text']}:           toggle text/image display"
-echo "${keys['vertical-split']}:           split pages"
+echo "${keys['horizontal-split']}:           split pages horizontally"
+echo "${keys['vertical-split']}:           split pages vertically"
 echo "${keys['print']}:           print document"
 echo "${keys['pager-toggle']}:           toggle pager in text mode" 
 echo "${keys['wrap-toggle']}:           toggle word-wrapping in text mode"
 echo "${keys['yank-text']}:           yank current page as text to clipboard"
-echo "${keys['help']}:           print this help"
+echo "${keys['help']}:           help"
 echo "${keys['quit']}:           quit"
 read -p "Press any key to return" -n 1 -s dummy
 if [ $dummy == 'q' ]; then exit; fi
@@ -646,23 +650,23 @@ tput cup 0 0
 read -n 1 command # await commands
 if [[ $command == "" ]]; then command="k"; fi
 case "$command" in
-    ${keys["previous-page"]})
+    "${keys['previous-page']}")
         if [[ $n =~ B$ ]]; then
             n=${n%B}
         else
             n=$[$n - 1]
         fi
         ;; # go back a page
-    ${keys["next-page"]})
+    "${keys['next-page']}")
         if [[ $n =~ B$ ]]; then
             n=$[${n%B} + 1]
-        elif [[ $split == "true" ]]; then
+        elif [[ $split == "vert" || $split == horiz ]]; then
             n="${n}B"
         else
             let n++
         fi
         ;;
-    ${keys["goto-page"]})   
+    "${keys['goto-page']}")   
         read -p "Goto page: " pn # jump to a page
         if [[ "$pn" == [0-9]* ]]; then
             n="$pn"
@@ -676,15 +680,15 @@ case "$command" in
         done
         n=$num
         ;;
-    ${keys["refresh-view"]})
+    "${keys['refresh-view']}")
         get_window_info # clean up and resize to fit pane
         clear
         ;;
-    ${keys["reload-document"]})
+    "${keys['reload-document']}")
         refresh_file # reload file 
         clear
         ;;
-    ${keys["text"]})
+    "${keys['text']}")
         if [ $display == "text" ]; then
             display="image"
         else
@@ -692,43 +696,52 @@ case "$command" in
         fi
         clear
         ;;
-    ${keys["crop-margins"]})
+    "${keys['crop-margins']}")
         if [ $trimmed == "false" ]; then
             trimmed="true"
         else
             trimmed="false"
         fi
         ;;
-    ${keys["pager-toggle"]})
+    "${keys['pager-toggle']}")
         if [[ "$text_pager" == "${text_pagers[1]}" ]]; then
             text_pager="${text_pagers[0]}"
         else
             text_pager="${text_pagers[1]}"
         fi
         ;;
-    ${keys["vertical-split"]})
+    "${keys['horizontal-split']}")
         refresh_file
-        if [[ $split == "true" ]]; then
+        if [[ $split == "horiz" ]]; then
             split="false"
             n=${n%B}
         else
-            split="true"
+            split="horiz"
         fi
         ;;
-    ${keys["print"]})
+    "${keys['vertical-split']}")
+        refresh_file
+        if [[ $split == "vert" ]]; then
+            split="false"
+            n=${n%B}
+        else
+            split="vert"
+        fi
+        ;;
+    "${keys['print']}")
         print_file
         ;;
-    ${keys["wrap-toggle"]})
+    "${keys['wrap-toggle']}")
         if [ $wrap == "true" ]; then
             wrap="false"
         else
             wrap="true"
         fi
         ;;
-    ${keys["yank-text"]})
+    "${keys['yank-text']}")
         yank_page
         ;;
-    ${keys["search"]}) 
+    "${keys['search']}") 
         find_text
         if [[ $index != -1 ]]; then
             n=${results[$index]%%:*}
@@ -736,7 +749,7 @@ case "$command" in
             tput cup 0 0
             echo "No matches"
         fi;;
-    ${keys["next-match"]})
+    "${keys['next-match']}")
         if [ $index != -1 ] && [ ${results[$[$index + 1]]} ]; then
             let index++
             n=${results[$index]%%:*} # go to next match
@@ -745,7 +758,7 @@ case "$command" in
             echo  "No matches"
         fi
         ;;
-    ${keys["previous-match"]})
+    "${keys['previous-match']}")
         if [ $index != -1 ] && [ ${results[$[$index - 1]]} ]; then
             index=$[$index - 1]
             n=${results[$index]%%:*} # go to previous match
@@ -753,13 +766,13 @@ case "$command" in
             tput cup 0 0
             echo  "No matches"
         fi;;
-    ${keys["help"]})
+    "${keys['help']}")
         print_help
         ;;
-    ${keys["debug"]})
+    "${keys['debug']}")
         debug
         ;;
-    ${keys["quit"]})
+    "${keys['quit']}")
         clean_and_exit
         ;;
 esac

@@ -14,7 +14,7 @@ Pages are automatically sized to fit within the terminal window (or tmux
 pane). Other features include:
 
 -   smart zoom (autocrop margins)
--   vertical split page view
+-   vertical and horizontal split page views
 -   jump to page number
 -   text search
 -   view page as text (with or without word wrapping)
@@ -89,7 +89,8 @@ While viewing a PDF, the default key commands are:
        R:           reload document
        m:           toggle autocropped margins
        t:           toggle text/image display
-       s:           split pages 
+       s:           split pages horizontally
+       v:           split pages vertically
        p:           print document
        l:           switch to between pagers in text mode
        w:           wrap lines in text mode
@@ -109,6 +110,11 @@ Sometimes, the script will display a page before it was finished
 converting, or try to display a page before it has been converted at all.
 Again, using the 'refresh display' command (`r`) should fix this.
 
+# TODO
+
+-   mark pages
+-   extract page or page range to pdf
+-   open more than one document at a time
 
   [the beta test release or a nightly build]: https://iterm2.com/downloads.html
   [Poppler]: http://poppler.freedesktop.org/
