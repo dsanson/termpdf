@@ -61,7 +61,7 @@ Usage
 =====
 
 ```.bash
-$ termpdf [options] file`
+$ termpdf [options] file
 
     -h or --help to get some help
     -t or --text to display text instead of images
