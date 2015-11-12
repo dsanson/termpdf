@@ -344,7 +344,11 @@ do
                     cp "${input_file}" "${tmp_file_root}-$i.png" 
                     ;;
                 *)
-                    convert "${input_file}" "${tmp_file_root}-$i.png"
+                    if [[ $os == 'Darwin' ]]; then
+                        sips -s format png "${input_file}" --out "${tmp_file_root}-$i.png"
+                    else
+                        convert "${input_file}" "${tmp_file_root}-$i.png"
+                    fi
                     ;;
             esac
             # generate margin-trimmed version of the page
@@ -361,7 +365,7 @@ do
 done
 }
 
-function convert_pdf_background() {
+function convert_background() {
 (
 core=${n%B}
 k=1
@@ -612,13 +616,12 @@ do
     page_limits
     # check the size of the pane, window, etc
     get_window_info
-    # Convert page $n of the PDF
+    # Convert the page to be displayed
     convert_page $n
-    # Convert surrounding pages in the background 
-    convert_pdf_background 
-
+    # Start converting surrounding pages in the background 
+    convert_background 
     tput cup 0 1  # we leave a line at the top for commands
-
+    
     if [[ $trimmed == 'true' ]]; then
         tmp_file="${tmp_file_root}-trimmed-$n.png"
     else
@@ -630,9 +633,9 @@ do
         convert_page $n;
         print_image "$tmp_file" 1 "$(base64 < "$tmp_file")"
     }
-else
-    display_text $n
-fi
+    else
+        display_text $n
+    fi
 
 tput cup 0 0 # put the cursor at the top of the pane
 tput el # erase any old stuff from previous commands
