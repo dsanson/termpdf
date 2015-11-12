@@ -1,4 +1,4 @@
-#n!/usr/bin/env bash
+#!/usr/bin/env bash
 ###########################################################################
 # termpdf is a barebones in-line graphical pdf viewer for terminals that
 # support in-line graphics.
@@ -17,6 +17,9 @@
 density=300 # set higher for sharper images (but a performance hit) 
 #
 display="image" # if you want to display text by default, set this to "text" 
+#
+print_command=lp
+print_options=("-o sides=two-sided-long-edge")
 #
 text_conversion_method=pdftotext
 #
@@ -308,6 +311,9 @@ do
                 tif|tiff)
                     convert -flatten "${input_file}[$[$i - 1]]" "${tmp_file_root}-$i.png"
                     ;;
+                png)
+                    cp "${input_file}" "${tmp_file_root}-$i.png" 
+                    ;;
                 *)
                     convert "${input_file}" "${tmp_file_root}-$i.png"
                     ;;
@@ -327,7 +333,7 @@ core=$n
 k=1
 while ((k<=halo))
 do
-    convert_page $[$core + $k] $[$core - $k]
+    convert_page $[$core + $k] $[$core - $k] 
     let k++
 done
 )&
@@ -402,6 +408,12 @@ function refresh_file() {
 rm "${tmp_dir}/tmp"*
 }
 
+function print_file() {
+echo " ...printing..."
+tput cup 0 0
+$print_command ${print_options[@]} "$input_file"
+}
+
 function check_dependencies() {
 
 case $ft in
@@ -439,7 +451,8 @@ echo "r:           refresh (resize and redraw)"
 echo "R:           reload document"
 echo "m:           toggle autocropped margins"
 echo "t:           toggle text/image display"
-echo "p:           toggle pager in text mode" 
+echo "p:           print document"
+echo "l:           toggle pager in text mode" 
 echo "w:           toggle word-wrapping in text mode"
 echo "y:           yank current page as text to clipboard"
 echo "/ <expr>     go to page with first match for <expr>"
@@ -642,12 +655,15 @@ case "$command" in
             trimmed="false"
         fi
         ;;
-    p)
+    l)
         if [[ "$text_pager" == "${text_pagers[1]}" ]]; then
             text_pager="${text_pagers[0]}"
         else
             text_pager="${text_pagers[1]}"
         fi
+        ;;
+    p)
+        print_file
         ;;
     w)
         if [ $wrap == "true" ]; then
@@ -675,7 +691,7 @@ case "$command" in
             tput cup 0 0
             echo  "No matches"
         fi;;
-    h)
+    h|\?)
         print_help
         ;;
     d)
