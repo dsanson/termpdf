@@ -624,7 +624,7 @@ do
     convert_page $n
     # Start converting surrounding pages in the background 
     convert_background 
-    tput cup 0 1  # we leave a line at the top for commands
+    tput cup 1 0  # we leave a line at the top for commands
     
     if [[ $trimmed == 'true' ]]; then
         tmp_file="${tmp_file_root}-trimmed-$n.png"
