@@ -56,16 +56,6 @@ symbolic link in `/usr/local/bin`:
 
     sudo ln -s /usr/lib/w3m/w3mimgdisplay /usr/local/bin/w3mimgdisplay
 
-Image Quality
-=============
-
-The script defaults to converting to 300x300 pixel images. For crisper text
-(at a possible performance cost), adjust the value of the `density` variable.
-
-To boost performance, the script converts each page as needed, but also
-attempts to convert, in the background, a few pages before and after the page
-currently being viewed. You can adjust the scope of these background
-conversions by adjusting the value of the `halo` variable.
 
 Usage
 =====
@@ -100,8 +90,12 @@ While viewing a PDF, the default key commands are:
        ?:           help
        q:           quit
 
-You change these to suit your own preferences: the values are set in the
-`keys` array found near the beginning of the script.
+# Settings
+
+Settings are at the beginning of the script. Set your print command
+and options (default: `lp -o sides=two-sided-long-edge`). Set your
+preferred text pagers (default: `cat` and `less`). Tweak the key commands
+as you see fit.
 
 # Known issues
 

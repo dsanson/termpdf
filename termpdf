@@ -14,14 +14,11 @@
 ###########################################################################
 # SETTINGS
 #
-density=300 # set higher for sharper images (but a performance hit) 
-#
-display="image" # if you want to display text by default, set this to "text" 
-#
 print_command=lp
 print_options=("-o sides=two-sided-long-edge")
 #
 text_conversion_method=pdftotext
+#text_conversion_method=html_pandoc
 #
 wrap="false" # default is not to pipe text through wrap in text mode 
 #
@@ -29,7 +26,7 @@ text_pagers[0]="cat" # default pager is 'cat'
 #
 text_pagers[1]="less -XFRE" # secondary pager is 'less'
 #
-halo=2 # number of pages out to convert in the background
+# command keys:
 #
 declare -A keys
 keys=(
@@ -53,6 +50,10 @@ keys=(
   ["debug"]="d"
   ["quit"]="q"
 )
+#
+display="image" # if you want to display text by default, set this to "text" 
+#
+halo=2 # number of pages out to convert in the background
 ###########################################################################
 
 ###########################################################################
@@ -390,7 +391,7 @@ case $1 in
     pdftotext)
         pdftotext -f $n -l $n -layout "$input_file" -
         ;;
-    html-pandoc)
+    html_pandoc)
         pdftohtml -f $n -l $n -i -noframes "$input_file" -stdout \
             | pandoc -f html -t plain --no-wrap
         ;;
@@ -399,8 +400,6 @@ esac
         
 function display_text_pdf() {
 clear
-
-text_conversion_method="pdftotext"
 
 if [[ $text_pager == 'cat' ]]; then
     convert_pdf_to_text $text_conversion_method \
