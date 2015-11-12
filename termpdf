@@ -31,6 +31,26 @@ text_pagers[1]="less -XFRE" # secondary pager is 'less'
 #
 halo=2 # number of pages out to convert in the background
 #
+declare -A keys
+keys=(
+  ["next-page"]="k"
+  ["previous-page"]="j"
+  ["goto-page"]="g"
+  ["refresh-view"]="r"
+  ["reload-document"]="R"
+  ["crop-margins"]="m"
+  ["text"]="t"
+  ["vertical-split"]="s"
+  ["print"]="p"
+  ["pager-toggle"]="l"
+  ["wrap-toggle"]="w"
+  ["yank-text"]="y"
+  ["search"]="/"
+  ["next-match"]="n"
+  ["previous-match"]="N"
+  ["help"]="\?"
+  ["quit"]="q"
+)
 ###########################################################################
 
 ###########################################################################
@@ -443,23 +463,24 @@ do
 function print_help() {
 clear
 tput cup 0 0
-echo "j/k:         page back/forward"
+echo "${keys['previous-page']}/${keys['next-page']}:         page back/forward"
 echo "enter/space: page forward"
-echo "g <number>:  go to page number"
+echo "${keys['goto-page']} <number>:  go to page number"
 echo "NNN:         go to page number NNN"
-echo "r:           refresh (resize and redraw)"
-echo "R:           reload document"
-echo "m:           toggle autocropped margins"
-echo "t:           toggle text/image display"
-echo "s:           split pages"
-echo "p:           print document"
-echo "l:           toggle pager in text mode" 
-echo "w:           toggle word-wrapping in text mode"
-echo "y:           yank current page as text to clipboard"
-echo "/ <expr>     go to page with first match for <expr>"
-echo "n:           go to next match for <expr>"
-echo "h:           print this help"
-echo "q:           quit"
+echo "${keys['search']} <expr>:    go to page with first match for <expr>"
+echo "${keys['next-match']}:           go to next match for <expr>"
+#echo "${keys['previous-match']}:           go to previous match for <expr>"
+echo "${keys['refresh-view']}:           refresh (resize and redraw)"
+echo "${keys['reload-document']}:           reload document"
+echo "${keys['crop-margins']}:           toggle autocropped margins"
+echo "${keys['text']}:           toggle text/image display"
+echo "${keys['vertical-split']}:           split pages"
+echo "${keys['print']}:           print document"
+echo "${keys['pager-toggle']}:           toggle pager in text mode" 
+echo "${keys['wrap-toggle']}:           toggle word-wrapping in text mode"
+echo "${keys['yank-text']}:           yank current page as text to clipboard"
+echo "${keys['help']}:           print this help"
+echo "${keys['quit']}:           quit"
 read -p "Press any key to return" -n 1 -s dummy
 if [ $dummy == 'q' ]; then exit; fi
 clear
@@ -608,14 +629,14 @@ tput cup 0 0
 read -n 1 command # await commands
 if [[ $command == "" ]]; then command="k"; fi
 case "$command" in
-    j)
+    ${keys["previous-page"]})
         if [[ $n =~ B$ ]]; then
             n=${n%B}
         else
             n=$[$n - 1]
         fi
         ;; # go back a page
-    k)
+    ${keys["next-page"]})
         if [[ $n =~ B$ ]]; then
             n=$[${n%B} + 1]
         elif [[ $split == "true" ]]; then
@@ -624,7 +645,7 @@ case "$command" in
             let n++
         fi
         ;;
-    g)   
+    ${keys["goto-page"]})   
         read -p "Goto page: " pn # jump to a page
         if [[ "$pn" == [0-9]* ]]; then
             n="$pn"
@@ -638,15 +659,15 @@ case "$command" in
         done
         n=$num
         ;;
-    r)
+    ${keys["refresh-view"]})
         get_window_info # clean up and resize to fit pane
         clear
         ;;
-    R)
+    ${keys["reload-document"]})
         refresh_file # reload file 
         clear
         ;;
-    t)
+    ${keys["text"]})
         if [ $display == "text" ]; then
             display="image"
         else
@@ -654,44 +675,43 @@ case "$command" in
         fi
         clear
         ;;
-    m)
+    ${keys["crop-margins"]})
         if [ $trimmed == "false" ]; then
             trimmed="true"
         else
             trimmed="false"
         fi
         ;;
-    l)
+    ${keys["pager-toggle"]})
         if [[ "$text_pager" == "${text_pagers[1]}" ]]; then
             text_pager="${text_pagers[0]}"
         else
             text_pager="${text_pagers[1]}"
         fi
+        echo $text_pager
         ;;
-    s)
+    ${keys["vertical-split"]})
         refresh_file
         if [[ $split == "true" ]]; then
             split="false"
-            halo=$[$halo / 2]
         else
             split="true"
-            halo=$[$halo * 2]
         fi
         ;;
-    p)
+    ${keys["print"]})
         print_file
         ;;
-    w)
+    ${keys["wrap-toggle"]})
         if [ $wrap == "true" ]; then
             wrap="false"
         else
             wrap="true"
         fi
         ;;
-    y)
+    ${keys["yank-text"]})
         yank_page
         ;;
-    '/') 
+    ${keys["search"]}) 
         find_text
         if [[ $index != -1 ]]; then
             n=${results[$index]}
@@ -699,7 +719,7 @@ case "$command" in
             tput cup 0 0
             echo "No matches"
         fi;;
-    n)
+    ${keys["next-match"]})
         if [ $index != -1 ] && [ ${results[$[$index + 1]]} ]; then
             let index++
             n=${results[$index]} # go to next match
@@ -707,13 +727,13 @@ case "$command" in
             tput cup 0 0
             echo  "No matches"
         fi;;
-    h|\?)
+    ${keys["help"]})
         print_help
         ;;
-    d)
+    ${keys["debug"]})
         debug
         ;;
-    q)
+    ${keys["quit"]})
         clean_and_exit
         ;;
 esac
