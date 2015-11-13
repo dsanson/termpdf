@@ -458,6 +458,15 @@ esac
 ###########################################################################
 # Miscellaneous functions
 #
+function display_bar() {
+offset=$[$width - ${#n} - ${#pages}]
+tput cup 0 0 # put the cursor at the top of the pane
+tput el # erase any old stuff from previous commands
+tput cup 0 $offset
+echo "$n/$pages"
+tput cup 0 0
+}
+
 function refresh_file() {
 rm "${tmp_dir}/tmp"*
 }
@@ -548,6 +557,7 @@ fi
 
 function debug() {
 tput cup 0 0
+printf "marked pages: "
 for reg in ${mark[@]}; do
     printf "$reg "
 done
@@ -659,11 +669,7 @@ do
         display_text $n
     fi
 
-tput cup 0 0 # put the cursor at the top of the pane
-tput el # erase any old stuff from previous commands
-tput cup 0 $(expr $width - ${#n} - ${#pages} - 1) # page num top right
-echo "$n/$pages"
-tput cup 0 0
+    display_bar
 
 read -n 1 command # await commands
 if [[ $command == "" ]]; then command="k"; fi
