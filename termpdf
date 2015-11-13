@@ -20,6 +20,8 @@ print_options=("-o sides=two-sided-long-edge")
 text_conversion_method=pdftotext
 #text_conversion_method=html_pandoc
 #
+clipboard="pbcopy"
+#
 wrap="false" # default is not to pipe text through wrap in text mode 
 #
 text_pagers[0]='cat' # default pager is 'cat'
@@ -32,6 +34,8 @@ declare -A keys
 keys=(
   ["next-page"]="k"
   ["previous-page"]="j"
+  ["next-doc"]="K"
+  ["previous-doc"]="J"
   ["goto-page"]="g"
   ["refresh-view"]="r"
   ["reload-document"]="R"
@@ -216,7 +220,7 @@ function print_image() {
 
 # A function that uses pdfgrep to search pdfs
 function search_pdf() {
-read -p "Find: " text
+read text
 if [[ $text != "" ]]; then
     IFS=$'\n' results=( $(pdfgrep -niC $[$width - 10] "$text" "$input_file") )
 fi
@@ -239,8 +243,8 @@ case $ft in
     pdf)
         search_pdf
         ;;
-    djvu|tif|tiff)
-        echo "search function not available for djvu or tif files" 
+    *)
+        message="text search not available"
         ;;
 esac
 }
@@ -249,14 +253,14 @@ esac
 function yank_page() {
 case $ft in
     pdf)
-        pdftotext -f $n -l $n -layout "$input_file" - | pbcopy
+        pdftotext -f $n -l $n -layout "$input_file" - | $clipboard 
         tput cup 0 0
-        echo "Page copied"
+        message="page copied to clipboard"
         ;;
     djvu)
-        djvutxt -page=$n "$input_file" | pbcopy
+        djvutxt -page=$n "$input_file" | $clipboard 
         tput cup 0 0
-        echo "Page copied"
+        message="page copied to clipboard"
         ;;
 esac
 }
@@ -300,6 +304,7 @@ esac
 
 # A function for validiating page numbers
 function page_limits() {
+if [[ $n == "" ]]; then n=1; fi
 if [ "${n%B}" -le 0 ]; then n=1; fi
 if [ "${n%B}" -ge "$pages" ]; then n="$pages"; fi
 }
@@ -447,8 +452,8 @@ case $ft in
     djvu)
         display_text_djvu
         ;;
-    tif|tiff)
-        echo "Text display not available for tif files"
+    *)
+        message="text display not available"
         ;;
 esac
 }
@@ -458,13 +463,22 @@ esac
 ###########################################################################
 # Miscellaneous functions
 #
+
 function display_bar() {
-offset=$[$width - ${#n} - ${#pages}]
-tput cup 0 0 # put the cursor at the top of the pane
+right_side="$n/$pages"
+if [[ ${#files[@]} -gt 1 ]]; then
+    right_side="$right_side [$cur_doc]"
+fi
+offset=$[$width - ${#right_side}]
+inset=5
+message_length=$[$width - ${#right_side} - $inset]
+tput cup $height 0
 tput el # erase any old stuff from previous commands
-tput cup 0 $offset
-echo "$n/$pages"
-tput cup 0 0
+tput cup $height 5
+printf "${message:0:$message_length}"
+tput cup $height $offset
+printf "$right_side"
+tput cup $height 0 # put the cursor in left corner
 }
 
 function refresh_file() {
@@ -472,9 +486,10 @@ rm "${tmp_dir}/tmp"*
 }
 
 function print_file() {
-echo " ...printing..."
-tput cup 0 0
+message="printing..."
+display_bar
 $print_command ${print_options[@]} "$input_file"
+message="print job sent"
 }
 
 function check_dependencies() {
@@ -498,9 +513,11 @@ fi
 
 for app in $dep_list
 do
-    command -v $app >/dev/null 2>&1 ||\
-        { echo >&2 "termpdf requires $app but it's not installed."; exit 1; } 
-    done
+    command -v $app >/dev/null 2>&1 || {
+        echo >&2 "termpdf requires $app but it's not installed."
+        sleep 1; 
+    } 
+done
 }
 
 function print_help() {
@@ -508,11 +525,12 @@ clear
 tput cup 0 0
 echo "${keys['previous-page']}/${keys['next-page']}:         page back/forward"
 echo "enter/space: page forward"
+echo "${keys['previous-doc']}/${keys['next-doc']}:         previous/next document"
 echo "${keys['goto-page']} <number>:  go to page number"
 echo "NNN:         go to page number NNN"
 echo "${keys['search']} <expr>:    go to page with first match for <expr>"
 echo "${keys['next-match']}:           go to next match for <expr>"
-#echo "${keys['previous-match']}:           go to previous match for <expr>"
+echo "${keys['previous-match']}:           go to previous match for <expr>"
 echo "${keys['refresh-view']}:           refresh display"
 echo "${keys['reload-document']}:           reload document"
 echo "${keys['crop-margins']}:           toggle autocropped margins"
@@ -523,6 +541,9 @@ echo "${keys['print']}:           print document"
 echo "${keys['pager-toggle']}:           toggle pager in text mode" 
 echo "${keys['wrap-toggle']}:           toggle word-wrapping in text mode"
 echo "${keys['yank-text']}:           yank current page as text to clipboard"
+echo "${keys['mark-page']}<char>m:    store page number to <char> mark"           
+echo "${keys['mark-page']}<char>g:    goto page number to <char> mark"           
+echo "${keys['extract']}:           extract pages between mark 1 and mark 2 to PDF"
 echo "${keys['help']}:           help"
 echo "${keys['quit']}:           quit"
 read -p "Press any key to return" -n 1 -s dummy
@@ -556,153 +577,87 @@ fi
 }
 
 function debug() {
-tput cup 0 0
-printf "marked pages: "
+message="marked pages:"
 for reg in ${mark[@]}; do
-    printf "$reg "
+    message="$message $reg"
 done
-read -n 1
-return
 }
 
-#
-###########################################################################
+function check_count() {
+    [[ $count == "" ]] && count=1
+}
 
-###########################################################################
-# Main program
-#
-# Set some defaults
-n=1 # start on page 1
-text_pager=${text_pagers[0]}
-results=( )
-index=-1 
-text="$" # null search text for egrep
-trimmed="false" # set to true to default to trim margins
-
-
-# Look for command line flags
-while [ $# -gt 0 ]; do
-    case "$1" in
-        -h|--help)
-            cli_help
-            exit
-            ;;
-        -t|--text)
-            display="text"
-            ;;
-        -n)
-            shift
-            if [[ "$1" != [0-9]* ]]; then
-                echo "Must specify a page number with -n"
-                exit
-            else
-                n="$1"
-            fi
-            ;;
-        -*)
-            echo "Unknown option: $1"
-            cli_help
-            exit
-            ;;
-        *)
-            if [ -r "$1" ] ; then
-                input_file="$1" 
-                ft=${input_file##*.}
-            else
-                echo "$1: No such file or directory"
-                exit
-            fi
-            ;;
-    esac
-    shift
-done
-
-# Check to see that a file was specified on the cli
-if [ ! -r "$input_file" ]; then cli_help; fi
-
-check_dependencies
-
-# How many pages does the file have?
-get_pages
-
-# Make a tmp_dir
-tmp_dir=$(mktemp -d)
-tmp_file_root="${tmp_dir}/tmp"
-
-# Postscript? Convert to PDF and relaunch
-if [[ $ft == 'ps' ]]; then
-    ps2pdf "$input_file" "${tmp_dir}/tmp.pdf"
-    $0 "${tmp_dir}/tmp.pdf"
-    clean_and_exit 
-fi
-
-# clear the pane since we don't always fill it
-clear
-
-
-# display the document 
-
-while true
-do
-    # make sure the page we want exists
-    page_limits
-    # check the size of the pane, window, etc
-    get_window_info
-    # Convert the page to be displayed
-    convert_page $n
-    # Start converting surrounding pages in the background 
-    convert_background 
-    tput cup 1 0  # we leave a line at the top for commands
-    
-    if [[ $trimmed == 'true' ]]; then
-        tmp_file="${tmp_file_root}-trimmed-$n.png"
-    else
-        tmp_file="${tmp_file_root}-$n.png"
-    fi
-    # display
-    if [ $display == 'image' ]; then
-        print_image "$tmp_file" 1 "$(base64 < "$tmp_file")" || {
-        convert_page $n;
-        print_image "$tmp_file" 1 "$(base64 < "$tmp_file")"
-    }
-    else
-        display_text $n
-    fi
-
-    display_bar
-
+function read_command() {
 read -n 1 command # await commands
 if [[ $command == "" ]]; then command="k"; fi
 case "$command" in
+    $'\e')
+        ;;
+    [0-9])
+        count="${count}${command}"
+        read_command
+        ;;
     "${keys['previous-page']}")
-        if [[ $n =~ B$ ]]; then
-            n=${n%B}
+        check_count
+        if [[ $split == "false" ]]; then
+            n=$[$n - $count]
+        elif [[ $n =~ B$ ]]; then
+            n=$[${n%B} - (count / 2)]
+            if [[ $[count % 2] -eq 1 ]]; then
+                n=${n%B}
+            fi
         else
-            n=$[$n - 1]
+            n=$[$n - ( $count / 2)]
+            if [[ $[count % 2] -eq 1 ]]; then
+                n="$[n - 1]B"
+            fi
         fi
         ;; # go back a page
     "${keys['next-page']}")
-        if [[ $n =~ B$ ]]; then
-            n=$[${n%B} + 1]
-        elif [[ $split == "vert" || $split == horiz ]]; then
-            n="${n}B"
+        check_count
+        if [[ $split == "false" ]]; then
+            n=$[$n + $count] 
+        elif [[ $n =~ B$ ]]; then
+            n=$[${n%B} + (count / 2)]
+            if [[ $[count % 2] -eq 1 ]]; then
+                n=$[n + 1]
+            else i
+                n="${n}B"
+            fi
         else
-            let n++
+            n=$[$n + (count / 2)]
+            if [[ $[count % 2] -eq 1 ]]; then
+                n="${n}B"
+            fi
         fi
+        ;;
+    "${keys['next-doc']}")
+        check_count
+        doc_num[$cur_doc]=$n
+        doc_split[$cur_doc]=$split
+        cur_doc=$[$cur_doc + ( $count % ${#files[@]} )]
+        if [[ $cur_doc -ge ${#files[@]} ]]; then
+            cur_doc=0
+        fi
+        n=${doc_num[$cur_doc]}
+        split=${doc_split[$cur_doc]}
+        display_doc $cur_doc
+        ;;
+    "${keys['previous-doc']}")
+        check_count
+        doc_num[$cur_doc]=$n
+        doc_split[$cur_doc]=$split
+        if [[ $cur_doc -ne 0 ]]; then
+            cur_doc=$[ $cur_doc - ( $count % ${#files[@]} )]
+        else
+            cur_doc=$[ ${#files[@]} - 1]
+        fi
+        n=${doc_num[$cur_doc]}
+        split=${doc_split[$cur_doc]}
+        display_doc $cur_doc
         ;;
     "${keys['goto-page']}")   
-        read -p "Goto page: " pn # jump to a page
-        if [[ "$pn" == [0-9]* ]]; then
-            n="$pn"
-        fi
-        ;;
-    [0-9])
-        num=$command
-        while read -n 1 -t 0.5 digit # get more digits
-        do
-            num="${num}${digit}"
-        done
-        n=$num
+        n=$count
         ;;
     "${keys['refresh-view']}")
         get_window_info # clean up and resize to fit pane
@@ -770,16 +725,16 @@ case "$command" in
         if [[ $index != -1 ]]; then
             n=${results[$index]%%:*}
         else
-            tput cup 0 0
-            echo "No matches"
+            message="no matches"
         fi;;
     "${keys['next-match']}")
-        if [ $index != -1 ] && [ ${results[$[$index + 1]]} ]; then
-            let index++
+        check_count
+        if [[ $index -ne -1 ]]; then 
+            index=$[index + ($count % ${#results[@]})] 
             n=${results[$index]%%:*} # go to next match
+            message="${results[$index]#*:}"
         else
-            tput cup 0 0
-            echo  "No matches"
+            message="No matches"
         fi
         ;;
     "${keys['previous-match']}")
@@ -787,8 +742,7 @@ case "$command" in
             index=$[$index - 1]
             n=${results[$index]%%:*} # go to previous match
         else
-            tput cup 0 0
-            echo  "No matches"
+            message="No matches"
         fi;;
     "${keys['mark-page']}")
         read -n 1 register
@@ -826,5 +780,127 @@ case "$command" in
         clean_and_exit
         ;;
 esac
+}
+
+function display_doc() {
+
+cur_doc=$1
+input_file="${files[$cur_doc]}"
+ft=${input_file##*.}
+
+if [[ $split == "" ]]; then split="false"; fi
+
+check_dependencies
+
+# How many pages does the file have?
+get_pages
+
+tmp_file_root="${tmp_dir}/tmp-${cur_doc}-"
+
+# Postscript? Convert to PDF and relaunch
+if [[ $ft == 'ps' ]]; then
+    ps2pdf "$input_file" "${tmp_dir}/tmp.pdf"
+    $0 "${tmp_dir}/tmp.pdf"
+    clean_and_exit 
+fi
+
+# clear the pane since we don't always fill it
+clear
+
+
+# display the document 
+
+while true
+do
+    # make sure the page we want exists
+    page_limits
+    # check the size of the pane, window, etc
+    get_window_info
+    # Convert the page to be displayed
+    convert_page $n
+    # Start converting surrounding pages in the background 
+    convert_background 
+    tput cup 0 0  # we leave a line at the top for commands
+    
+    if [[ $trimmed == 'true' ]]; then
+        tmp_file="${tmp_file_root}-trimmed-$n.png"
+    else
+        tmp_file="${tmp_file_root}-$n.png"
+    fi
+    # display
+    if [ $display == 'image' ]; then
+        print_image "$tmp_file" 1 "$(base64 < "$tmp_file")" || {
+        convert_page $n;
+        print_image "$tmp_file" 1 "$(base64 < "$tmp_file")"
+    }
+    else
+        display_text $n
+    fi
+
+    display_bar
+    count=""
+    read_command
+
 done
+}
+#
+###########################################################################
+
+###########################################################################
+# Main program
+#
+# Set some defaults
+n=1 # start on page 1
+text_pager=${text_pagers[0]}
+results=( )
+index=-1 
+text="$" # null search text for egrep
+trimmed="false" # set to true to default to trim margins
+split=false # don't split pages by default
+files=( )
+
+
+# Look for command line flags
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            cli_help
+            exit
+            ;;
+        -t|--text)
+            display="text"
+           ;;
+        -n)
+            shift
+            if [[ "$1" != [0-9]* ]]; then
+                echo "Must specify a page number with -n"
+                exit
+            else
+                n="$1"
+            fi
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            cli_help
+            exit
+            ;;
+        *)
+            if [ -r "$1" ] ; then
+                files=( "${files[@]}" "$1" ) 
+            else
+                echo "$1: No such file or directory"
+                exit
+            fi
+            ;;
+    esac
+    shift
+done
+
+# Check to see that a file was specified on the cli
+if [[ ${#files[@]} == 0 ]]; then cli_help; fi
+
+# Make a tmp_dir
+tmp_dir=$(mktemp -d)
+display_doc 0
+
 
