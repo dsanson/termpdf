@@ -46,6 +46,8 @@ keys=(
   ["search"]="/"
   ["next-match"]="n"
   ["previous-match"]="N"
+  ["mark-page"]="."
+  ["extract"]="x"
   ["help"]="?"
   ["debug"]="d"
   ["quit"]="q"
@@ -376,6 +378,25 @@ done
 #
 ###########################################################################
 
+
+###########################################################################
+# PDF utilities
+#
+# extract_pdf <page_no> <page_no> output_file
+# 
+function extract_pdf() {
+if [[ $1 -gt $2 ]]; then 
+    start_page=$2
+    end_page=$1
+else
+    start_page=$1
+    end_page=$2
+fi
+pdftocairo -f $start_page -l $end_page -pdf "$input_file" "$3" 
+}
+
+
+
 ###########################################################################
 # Text Conversion and Display functions
 #
@@ -526,6 +547,11 @@ fi
 }
 
 function debug() {
+tput cup 0 0
+for reg in ${mark[@]}; do
+    printf "$reg "
+done
+read -n 1
 return
 }
 
@@ -758,6 +784,32 @@ case "$command" in
             tput cup 0 0
             echo  "No matches"
         fi;;
+    "${keys['mark-page']}")
+        read -n 1 register
+        read -n 1 command
+        case $command in
+            m)
+                mark[$register]=${n%B}
+                ;;
+            g)
+                if [[ ${mark[$register]} != "" ]]; then
+                    n=${mark[$register]}
+                fi
+                ;;
+        esac
+        ;;
+    "${keys['extract']}")
+        tput cup 0 0
+        read -n 1 -p "Save pages ${mark[1]} to ${mark[2]} to separate file? " res
+        if [[ $res == y ]]; then
+            tput cup 0 0
+            tput el
+            read -p "File name: " out
+            if [[ ! -e "$out" ]]; then 
+                extract_pdf ${mark[1]} ${mark[2]} "$out"
+            fi
+        fi
+        ;;
     "${keys['help']}")
         print_help
         ;;
