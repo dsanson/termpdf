@@ -1083,7 +1083,6 @@ index=-1
 text="$" # null search text for egrep
 trimmed="false" # set to true to default to trim margins
 split=false # don't split pages by default
-message="${key['help']} for help"
 files=( )
 declare -A mark
 
