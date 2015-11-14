@@ -53,9 +53,10 @@ keys=(
   ["previous-match"]="N"
   ["mark-page"]="m"
   ["to-mark"]="'"
-  ["next-mark"]="]"
-  ["previous-mark"]="["
+  ["next-mark"]="]" # not implemented
+  ["previous-mark"]="[" # not implemented
   ["yank-pdf"]="y"
+  ["open-file"]="o"
   ["help"]="?"
   ["debug"]="d"
   ["quit"]="q"
@@ -327,8 +328,8 @@ esac
 # A function for validiating page numbers
 function page_limits() {
 if [[ $n == "" ]]; then n=1; fi
-if [ "${n%B}" -le 0 ]; then n=1; fi
-if [ "${n%B}" -ge "$pages" ]; then n=$pages; fi
+if [ "${n%[AB]}" -le 0 ]; then n=1; fi
+if [ "${n%[AB]}" -ge "$pages" ]; then n=$pages; fi
 }
 #
 ###########################################################################
@@ -340,10 +341,18 @@ if [ "${n%B}" -ge "$pages" ]; then n=$pages; fi
 function split_image() {
 if [[ $split == 'vert' ]]; then geo='50%x100%'; fi
 if [[ $split == 'horiz' ]]; then geo='100%x50%'; fi
-convert -crop $geo +repage \
-    ${tmp_file_root}-$1.png ${tmp_file_root}-$1-%d.png 
-mv ${tmp_file_root}-$1-0.png ${tmp_file_root}-$1.png
-mv ${tmp_file_root}-$1-1.png ${tmp_file_root}-$1B.png
+convert ${tmp_file_root}-$1.png \
+    -crop $geo +repage \
+    ${tmp_file_root}-$1-%d.png 
+mv ${tmp_file_root}-$1-0.png ${tmp_file_root}-${1}A.png
+mv ${tmp_file_root}-$1-1.png ${tmp_file_root}-${1}B.png
+# generate margin-trimmed version of the split page
+convert -trim "$tmp_file_root-${1}A.png" \
+    -bordercolor white -border 20x20 \
+    "${tmp_file_root}-trimmed-${1}A.png" #2>/dev/null
+convert -trim "$tmp_file_root-${1}B.png" \
+    -bordercolor white -border 20x20 \
+    "${tmp_file_root}-trimmed-${1}B.png" #2>/dev/null
 }
 
 function convert_pdf_cairo() {
@@ -354,10 +363,13 @@ pdftocairo -f $1 -l $1 -png -singlefile "$input_file" "${tmp_file_root}-$1"
 function convert_page() {
 for i in "$@"
 do       
+    # don't attempt background conversions if tmp_dir has been deleted
+    if [[ ! -d "${tmp_dir}" ]]; then exit; fi 
+    # don't convert pages that have already been converted
     if [[ ! -f "${tmp_file_root}-$i.png" ]]; then
-        if [[ $i =~ B$ ]]; then
-            convert_page ${i%B}
-            split_image ${i%B}
+        if [[ $i =~ [AB]$ ]]; then
+            convert_page ${i%[AB]}
+            split_image ${i%[AB]}
         else
             case $ft in
                 pdf)
@@ -385,20 +397,14 @@ do
         # generate margin-trimmed version of the page
         convert -trim "$tmp_file_root-$i.png" \
             -bordercolor white -border 20x20 \
-            "$tmp_file_root-trimmed-$i.png" 2>/dev/null
-        if [[ "$split" != "false" ]]; then
-            convert -trim "$tmp_file_root-$iB.png" \
-            -bordercolor white -border 20x20 \
-            "$tmp_file_root-trimmed-$iB.png" 2>/dev/null
-        fi
-
+            "${tmp_file_root}-trimmed-$i.png" #2>/dev/null
     fi
 done
 }
 
 function convert_background() {
 (
-core=${n%B}
+core=${n%[AB]}
 k=1
 while ((k<=halo))
 do
@@ -420,12 +426,17 @@ done
 # extract_pdf <page_no> <page_no> output_file
 # 
 function extract_pdf() {
-message="       saving page $1 to $2 to pdf"
+if [[ $1 -gt $2 ]]; then 
+    start_page=$2
+    end_page=$1
+else
+    start_page=$1
+    end_page=$2
+fi
+message=""
 display_bar
-printf "Save as: "
-out=$(read_string)
+read -e -p "<$start_page:$end_page>Save as: " out 
 if [[ "$out" == "" ]]; then
-    message="cancelled"
     return
 fi
 if [[ ! "$out" =~ .pdf$ ]]; then
@@ -433,13 +444,6 @@ if [[ ! "$out" =~ .pdf$ ]]; then
 fi
 
 if [[ ! -e "$out" ]]; then 
-    if [[ $1 -gt $2 ]]; then 
-        start_page=$2
-        end_page=$1
-    else
-        start_page=$1
-        end_page=$2
-    fi
     pdftocairo -f $start_page -l $end_page -pdf "$input_file" "$out" 
     message="pages $start_page to $end_page saved as $out"
 else
@@ -511,6 +515,37 @@ esac
 # Miscellaneous functions
 #
 
+function display_banner() {
+banner[1]=" _                                _  __ "
+banner[2]="| |_ ___ _ __ _ __ ___  _ __   __| |/ _|"
+banner[3]="| __/ _ \ '__| '_ \` _ \| '_ \ / _\` | |_ "
+banner[4]="| ||  __/ |  | | | | | | |_) | (_| |  _|"
+banner[5]=" \__\___|_|  |_| |_| |_| .__/ \__,_|_|  "
+banner[6]="                       |_|              "
+clear
+start_row=$[($height/2) - 3]
+start_col=$[($width/2) - (${#banner[1]}/2)]
+if [[ ${#banner[1]} -gt $width ]]; then
+    start_col=0
+fi
+tput cup $start_row 0
+for line in "${banner[@]}"; do
+    printf "%*s%s\n" $start_col " " "$line"
+done
+}
+
+function open_file() {
+    message=""
+    display_bar
+    read -e -p "Open: " new_file
+    if [[ -r $new_file ]]; then
+        files=( "${files[@]}" "$new_file" )
+        display_doc $[${#files[@]} - 1 ]
+    else
+        message="No such file"
+    fi
+}
+
 function read_string() {
 string=""
 while true
@@ -555,10 +590,14 @@ rm "${tmp_dir}/tmp"*
 }
 
 function print_file() {
-message="printing..."
 display_bar
-$print_command ${print_options[@]} "$input_file"
-message="print job sent"
+read -n 1 -p "Print document? " res
+if [[ $res == 'y' ]]; then
+    message="printing..."
+    display_bar
+    $print_command ${print_options[@]} "$input_file"
+    message="print job sent"
+fi
 }
 
 function check_dependencies() {
@@ -602,7 +641,7 @@ ${keys['search']}<expr>:     search for <expr>
 [count]${keys['previous-match']}:    go to previous match for <expr>
 ${keys['refresh-view']}:           refresh display
 ${keys['reload-document']}:           reload document
-${keys['crop-margins']}:           toggle autocropped margins
+${keys['crop-margins']}:           zoom (crop margins) 
 ${keys['text']}:           toggle text/image display
 ${keys['horizontal-split']}:           split pages horizontally
 ${keys['vertical-split']}:           split pages vertically
@@ -613,6 +652,7 @@ ${keys['yank-text']}:           yank pages between current and n as text
 ${keys['mark-page']}<char>:     store page number to <char> mark"           
 ${keys['to-mark']}<char>:     go to page stored in <char> mark"           
 [count]${keys['yank-pdf']}:    yank pages to PDF 
+${keys['open-file']}:           open file
 ${keys['help']}:           help
 ${keys['quit']}:           quit
 EOH
@@ -685,14 +725,14 @@ case "$command" in
         if [[ $split == "false" ]]; then
             n=$[$n - $count]
         elif [[ $n =~ B$ ]]; then
-            n=$[${n%B} - (count / 2)]
+            n=$[${n%B} - (count / 2)]B
             if [[ $[count % 2] -eq 1 ]]; then
-                n=${n%B}
+                n=${n%B}A
             fi
         else
-            n=$[$n - ( $count / 2)]
+            n=$[${n%A} - ( $count / 2)]A
             if [[ $[count % 2] -eq 1 ]]; then
-                n="$[n - 1]B"
+                n="$[${n%A} - 1]B"
             fi
         fi
         message=""
@@ -702,16 +742,14 @@ case "$command" in
         if [[ $split == "false" ]]; then
             n=$[$n + $count] 
         elif [[ $n =~ B$ ]]; then
-            n=$[${n%B} + (count / 2)]
+            n=$[${n%B} + (count / 2)]B
             if [[ $[count % 2] -eq 1 ]]; then
-                n=$[n + 1]
-            else i
-                n="${n}B"
+                n=$[${n%B} + 1]A
             fi
         else
-            n=$[$n + (count / 2)]
+            n=$[${n%A} + (count / 2)]A
             if [[ $[count % 2] -eq 1 ]]; then
-                n="${n}B"
+                n="${n%A}B"
             fi
         fi
         message=""
@@ -777,22 +815,22 @@ case "$command" in
         message="pager: $text_pager"
         ;;
     "${keys['horizontal-split']}")
-        refresh_file
         if [[ $split == "horiz" ]]; then
             split="false"
-            n=${n%B}
+            n=${n%[AB]}
         else
             split="horiz"
+            n="${n%[AB]}A"
         fi
         message=""
         ;;
     "${keys['vertical-split']}")
-        refresh_file
         if [[ $split == "vert" ]]; then
             split="false"
-            n=${n%B}
+            n=${n%[AB]}
         else
             split="vert"
+            n="${n%[AB]}A"
         fi
         message=""
         ;;
@@ -935,7 +973,7 @@ case "$command" in
             case $command in
                 $'\e')
                     ;;
-                "${keys['yank-pdf']}")
+                "${keys['yank-text']}")
                     yank_text $n $n
                     ;;
                 "${keys['to-mark']}")
@@ -957,8 +995,8 @@ case "$command" in
             esac
         fi
         ;;
-    "${keys['yank-text']}")
-        yank_text $n
+    "${keys['open-file']}")
+        open_file
         ;;
     "${keys['help']}")
         print_help
@@ -996,7 +1034,7 @@ if [[ $ft == 'ps' ]]; then
 fi
 
 # clear the pane since we don't always fill it
-clear
+#clear
 
 
 # display the document 
@@ -1011,7 +1049,7 @@ do
     convert_page $n
     # Start converting surrounding pages in the background 
     convert_background 
-    tput cup 0 0  # we leave a line at the top for commands
+    tput cup 0 0 
     
     if [[ $trimmed == 'true' ]]; then
         tmp_file="${tmp_file_root}-trimmed-$n.png"
@@ -1020,10 +1058,7 @@ do
     fi
     # display
     if [ $display == 'image' ]; then
-        print_image "$tmp_file" 1 "$(base64 < "$tmp_file")" || {
-        convert_page $n;
         print_image "$tmp_file" 1 "$(base64 < "$tmp_file")"
-    }
     else
         display_text $n
     fi
@@ -1048,6 +1083,7 @@ index=-1
 text="$" # null search text for egrep
 trimmed="false" # set to true to default to trim margins
 split=false # don't split pages by default
+message="${key['help']} for help"
 files=( )
 declare -A mark
 
@@ -1080,7 +1116,7 @@ while [ $# -gt 0 ]; do
             if [ -r "$1" ] ; then
                 files=( "${files[@]}" "$1" ) 
             else
-                echo "$1: No such file or directory"
+                echo "$1: No such file" 
                 exit
             fi
             ;;
@@ -1088,11 +1124,17 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-# Check to see that a file was specified on the cli
-if [[ ${#files[@]} == 0 ]]; then cli_help; fi
 
 # Make a tmp_dir
 tmp_dir=$(mktemp -d)
-display_doc 0
+# Check to see that a file was specified on the cli
+if [[ ${#files[@]} == 0 ]]; then 
+    get_pane_size
+    display_banner
+    open_file
+    echo $message 
+else
+    display_doc 0
+fi
 
 
