@@ -37,21 +37,25 @@ keys=(
   ["next-doc"]="K"
   ["previous-doc"]="J"
   ["goto-page"]="g"
+  ["goto-last"]="G"
   ["refresh-view"]="r"
   ["reload-document"]="R"
-  ["crop-margins"]="m"
+  ["crop-margins"]="z"
   ["text"]="t"
   ["horizontal-split"]="s"
   ["vertical-split"]="v"
   ["print"]="p"
   ["pager-toggle"]="l"
   ["wrap-toggle"]="w"
-  ["yank-text"]="y"
+  ["yank-text"]="Y"
   ["search"]="/"
   ["next-match"]="n"
   ["previous-match"]="N"
-  ["mark-page"]="."
-  ["extract"]="x"
+  ["mark-page"]="m"
+  ["to-mark"]="'"
+  ["next-mark"]="]"
+  ["previous-mark"]="["
+  ["yank-pdf"]="y"
   ["help"]="?"
   ["debug"]="d"
   ["quit"]="q"
@@ -218,20 +222,33 @@ function print_image() {
 ###########################################################################
 # Functions for searching, yanking, text within documents 
 
-# A function that uses pdfgrep to search pdfs
-function search_pdf() {
-read text
-if [[ $text != "" ]]; then
-    IFS=$'\n' results=( $(pdfgrep -niC $[$width - 10] "$text" "$input_file") )
-fi
-
-if [ ${#results[@]} -gt 0 ]; then # use selecta to select result
-    index=0
+function select_results() {
+# if selecta is available, interactive selection of matches
+    command -v selecta >/dev/null 2>&1 && {
     index=$(for res in ${results[@]}; do
         echo ${index}:$res
         let index++
     done | selecta)
     index=${index%%:*}
+    }
+}
+# A function for listing search results and selecting
+
+# A function that uses pdfgrep to search pdfs
+function search_pdf() {
+text=$(read_string)
+if [[ $text != "" ]]; then
+    IFS=$'\n' results=( $(pdfgrep -niC $[$width - 10] "$text" "$input_file") )
+fi
+
+if [ ${#results[@]} -gt 0 ]; then 
+    index=0
+    while [[ ${results[$index]%%:*} -lt $n ]] # find first match at or after page
+    do
+        let index++
+    done
+    select_results
+    message="${results[$index]#*:}"
 else 
     index=-1
 fi
@@ -250,16 +267,21 @@ esac
 }
 
 # A function for yanking text from current page to clipboard
-function yank_page() {
+function yank_text() {
+if [[ $1 -gt $2 ]]; then 
+    start_page=$2
+    end_page=$1
+else
+    start_page=$1
+    end_page=$2
+fi
 case $ft in
     pdf)
-        pdftotext -f $n -l $n -layout "$input_file" - | $clipboard 
-        tput cup 0 0
-        message="page copied to clipboard"
+        pdftotext -f $start_page -l $end_page -layout "$input_file" - | $clipboard 
+        message="pages $start_page to $end_page copied to clipboard"
         ;;
     djvu)
-        djvutxt -page=$n "$input_file" | $clipboard 
-        tput cup 0 0
+        djvutxt -page=$start_page-$end_page "$input_file" | $clipboard 
         message="page copied to clipboard"
         ;;
 esac
@@ -315,16 +337,17 @@ if [ "${n%B}" -ge "$pages" ]; then n="$pages"; fi
 # Image conversion functions
 #
 
+function split_image() {
+if [[ $split == 'vert' ]]; then geo='50%x100%'; fi
+if [[ $split == 'horiz' ]]; then geo='100%x50%'; fi
+convert -crop $geo +repage \
+    ${tmp_file_root}-$1.png ${tmp_file_root}-$1-%d.png 
+mv ${tmp_file_root}-$1-0.png ${tmp_file_root}-$1.png
+mv ${tmp_file_root}-$1-1.png ${tmp_file_root}-$1B.png
+}
+
 function convert_pdf_cairo() {
 pdftocairo -f $1 -l $1 -png -singlefile "$input_file" "${tmp_file_root}-$1"
-if [[ $split == 'vert' || $split == 'horiz' ]]; then
-    if [[ $split == 'vert' ]]; then geo='50%x100%'; fi
-    if [[ $split == 'horiz' ]]; then geo='100%x50%'; fi
-    convert -crop $geo +repage \
-        ${tmp_file_root}-$1.png ${tmp_file_root}-$1-%d.png 
-    mv ${tmp_file_root}-$1-0.png ${tmp_file_root}-$1.png
-    mv ${tmp_file_root}-$1-1.png ${tmp_file_root}-$1B.png
-fi
 }
 
 # 
@@ -355,11 +378,15 @@ do
                     fi
                     ;;
             esac
+            # generate split versions of page
+            if [[ $split != 'false' ]]; then
+               split_image $1
+            fi
             # generate margin-trimmed version of the page
             convert -trim "$tmp_file_root-$i.png" \
                 -bordercolor white -border 20x20 \
                 "$tmp_file_root-trimmed-$i.png" 2>/dev/null
-            if [[ "$split" == "vert" || $split == "horiz" ]]; then
+            if [[ "$split" != "false" ]]; then
                 convert -trim "$tmp_file_root-$iB.png" \
                 -bordercolor white -border 20x20 \
                 "$tmp_file_root-trimmed-$iB.png" 2>/dev/null
@@ -390,14 +417,31 @@ done
 # extract_pdf <page_no> <page_no> output_file
 # 
 function extract_pdf() {
-if [[ $1 -gt $2 ]]; then 
-    start_page=$2
-    end_page=$1
-else
-    start_page=$1
-    end_page=$2
+message="       saving page $1 to $2 to pdf"
+display_bar
+printf "Save as: "
+out=$(read_string)
+if [[ "$out" == "" ]]; then
+    message="cancelled"
+    return
 fi
-pdftocairo -f $start_page -l $end_page -pdf "$input_file" "$3" 
+if [[ ! "$out" =~ .pdf$ ]]; then
+    out="${out}.pdf"
+fi
+
+if [[ ! -e "$out" ]]; then 
+    if [[ $1 -gt $2 ]]; then 
+        start_page=$2
+        end_page=$1
+    else
+        start_page=$1
+        end_page=$2
+    fi
+    pdftocairo -f $start_page -l $end_page -pdf "$input_file" "$out" 
+    message="pages $start_page to $end_page saved as $out"
+else
+    message="file already exists"
+fi
 }
 
 
@@ -464,6 +508,28 @@ esac
 # Miscellaneous functions
 #
 
+function read_string() {
+string=""
+while true
+do
+    read -n 1 input
+    case $input in
+        $'\e')
+            string=""
+            break
+            ;;
+        '')
+            break
+            ;;
+        *)
+            string="${string}${input}"
+            ;;
+    esac
+done
+    printf "$string"
+}
+
+
 function display_bar() {
 right_side="$n/$pages"
 if [[ ${#files[@]} -gt 1 ]]; then
@@ -471,7 +537,7 @@ if [[ ${#files[@]} -gt 1 ]]; then
 fi
 offset=$[$width - ${#right_side}]
 inset=5
-message_length=$[$width - ${#right_side} - $inset]
+message_length=$[$width - ${#right_side} - $inset - 2]
 tput cup $height 0
 tput el # erase any old stuff from previous commands
 tput cup $height 5
@@ -496,7 +562,7 @@ function check_dependencies() {
 
 case $ft in
     pdf)
-        dep_list="gs pdftotext pdfgrep pdfinfo convert selecta"
+        dep_list="pdftotext pdfgrep pdfinfo convert selecta"
         ;;
     djvu)
         dep_list="djvups djvutxt djvudump convert selecta"
@@ -523,29 +589,30 @@ done
 function print_help() {
 clear
 tput cup 0 0
-echo "${keys['previous-page']}/${keys['next-page']}:         page back/forward"
-echo "enter/space: page forward"
-echo "${keys['previous-doc']}/${keys['next-doc']}:         previous/next document"
-echo "${keys['goto-page']} <number>:  go to page number"
-echo "NNN:         go to page number NNN"
-echo "${keys['search']} <expr>:    go to page with first match for <expr>"
-echo "${keys['next-match']}:           go to next match for <expr>"
-echo "${keys['previous-match']}:           go to previous match for <expr>"
-echo "${keys['refresh-view']}:           refresh display"
-echo "${keys['reload-document']}:           reload document"
-echo "${keys['crop-margins']}:           toggle autocropped margins"
-echo "${keys['text']}:           toggle text/image display"
-echo "${keys['horizontal-split']}:           split pages horizontally"
-echo "${keys['vertical-split']}:           split pages vertically"
-echo "${keys['print']}:           print document"
-echo "${keys['pager-toggle']}:           toggle pager in text mode" 
-echo "${keys['wrap-toggle']}:           toggle word-wrapping in text mode"
-echo "${keys['yank-text']}:           yank current page as text to clipboard"
-echo "${keys['mark-page']}<char>m:    store page number to <char> mark"           
-echo "${keys['mark-page']}<char>g:    goto page number to <char> mark"           
-echo "${keys['extract']}:           extract pages between mark 1 and mark 2 to PDF"
-echo "${keys['help']}:           help"
-echo "${keys['quit']}:           quit"
+cat <<EOH
+[count]${keys['previous-page']}/${keys['next-page']}:  page back/forward
+enter/space: page forward
+[count]${keys['previous-doc']}/${keys['next-doc']}:  previous/next document
+[count]${keys['goto-page']}:    go to page number
+${keys['search']}<expr>:     search for <expr> 
+[count]${keys['next-match']}:    go to next match for <expr>
+[count]${keys['previous-match']}:    go to previous match for <expr>
+${keys['refresh-view']}:           refresh display
+${keys['reload-document']}:           reload document
+${keys['crop-margins']}:           toggle autocropped margins
+${keys['text']}:           toggle text/image display
+${keys['horizontal-split']}:           split pages horizontally
+${keys['vertical-split']}:           split pages vertically
+${keys['print']}:           print document
+${keys['pager-toggle']}:           toggle pager in text mode" 
+${keys['wrap-toggle']}:           toggle word-wrapping in text mode
+${keys['yank-text']}:           yank pages between current and n as text
+${keys['mark-page']}<char>:     store page number to <char> mark"           
+${keys['to-mark']}<char>:     go to page stored in <char> mark"           
+[count]${keys['yank-pdf']}:    yank pages to PDF 
+${keys['help']}:           help
+${keys['quit']}:           quit
+EOH
 read -p "Press any key to return" -n 1 -s dummy
 if [ $dummy == 'q' ]; then exit; fi
 clear
@@ -576,11 +643,25 @@ if [[ "$os" != "Darwin" ]]; then
 fi
 }
 
-function debug() {
-message="marked pages:"
-for reg in ${mark[@]}; do
-    message="$message $reg"
+function blank_if_not_integer() {
+if [ $1 -eq $1 ] 2> /dev/null;
+then
+    printf $1
+else
+    printf ""
+fi
+}
+
+function list_marks() {
+message="marks:"
+for reg in ${!mark[@]}; do
+    message="$message $reg:${mark[$reg]}"
 done
+}
+
+function debug() {
+test=$(read_string)
+#message=$(blank_if_not_integer $test) 
 }
 
 function check_count() {
@@ -588,8 +669,7 @@ function check_count() {
 }
 
 function read_command() {
-read -n 1 command # await commands
-if [[ $command == "" ]]; then command="k"; fi
+read -n 1 command # await command
 case "$command" in
     $'\e')
         ;;
@@ -612,8 +692,9 @@ case "$command" in
                 n="$[n - 1]B"
             fi
         fi
+        message=""
         ;; # go back a page
-    "${keys['next-page']}")
+    "${keys['next-page']}"|'')
         check_count
         if [[ $split == "false" ]]; then
             n=$[$n + $count] 
@@ -630,6 +711,7 @@ case "$command" in
                 n="${n}B"
             fi
         fi
+        message=""
         ;;
     "${keys['next-doc']}")
         check_count
@@ -656,15 +738,14 @@ case "$command" in
         split=${doc_split[$cur_doc]}
         display_doc $cur_doc
         ;;
-    "${keys['goto-page']}")   
-        n=$count
-        ;;
     "${keys['refresh-view']}")
         get_window_info # clean up and resize to fit pane
+        message=""
         clear
         ;;
     "${keys['reload-document']}")
         refresh_file # reload file 
+        message=""
         clear
         ;;
     "${keys['text']}")
@@ -674,6 +755,7 @@ case "$command" in
             display="text"
         fi
         clear
+        message=""
         ;;
     "${keys['crop-margins']}")
         if [ $trimmed == "false" ]; then
@@ -681,6 +763,7 @@ case "$command" in
         else
             trimmed="false"
         fi
+        message=""
         ;;
     "${keys['pager-toggle']}")
         if [[ "$text_pager" == "${text_pagers[1]}" ]]; then
@@ -688,6 +771,7 @@ case "$command" in
         else
             text_pager=${text_pagers[1]}
         fi
+        message="pager: $text_pager"
         ;;
     "${keys['horizontal-split']}")
         refresh_file
@@ -697,6 +781,7 @@ case "$command" in
         else
             split="horiz"
         fi
+        message=""
         ;;
     "${keys['vertical-split']}")
         refresh_file
@@ -706,6 +791,7 @@ case "$command" in
         else
             split="vert"
         fi
+        message=""
         ;;
     "${keys['print']}")
         print_file
@@ -716,9 +802,7 @@ case "$command" in
         else
             wrap="true"
         fi
-        ;;
-    "${keys['yank-text']}")
-        yank_page
+        message=""
         ;;
     "${keys['search']}") 
         find_text
@@ -730,48 +814,152 @@ case "$command" in
     "${keys['next-match']}")
         check_count
         if [[ $index -ne -1 ]]; then 
-            index=$[index + ($count % ${#results[@]})] 
+            index=$[($index + $count) % ${#results[@]}] 
             n=${results[$index]%%:*} # go to next match
-            message="${results[$index]#*:}"
+            message="$[$index + 1]/${#results[@]}: ${results[$index]#*:}"
         else
             message="No matches"
         fi
         ;;
     "${keys['previous-match']}")
-        if [ $index != -1 ] && [ ${results[$[$index - 1]]} ]; then
-            index=$[$index - 1]
+        check_count
+        if [[ $index -ne -1 ]]; then
+            index=$[($index - $count) % ${#results[@]}]
             n=${results[$index]%%:*} # go to previous match
+            message="$[$index + 1]/${#results[@]}: ${results[$index]#*:}"
         else
             message="No matches"
         fi;;
     "${keys['mark-page']}")
         read -n 1 register
-        read -n 1 command
-        case $command in
-            m)
-                mark[$register]=${n%B}
+        case $register in
+            $'\e')
                 ;;
-            g)
-                if [[ ${mark[$register]} != "" ]]; then
+            *)    
+                mark[$register]=$n
+                message="page $n stored in mark \'$register\'"
+                ;;
+        esac
+        ;;
+
+    "${keys['goto-last']}")   
+        if [[ $count == "" ]]; then
+            n=$pages
+        else
+           n=$count
+        fi
+        ;;
+    "${keys['goto-page']}")   
+        if [[ $count == "" ]]; then
+            read -n 1 command
+            case $command in
+                $'\e')
+                    ;;
+                "${keys['goto-page']}")
+                    n=1
+                    message=""
+                    ;;
+                "${keys['to-mark']}")
+                    read -n 1 register
+                    case $register in
+                        $'\e')
+                            ;;
+                        *)
+                            if [[ ${mark[$register]} != "" ]]; then
+                                n=${mark[$register]}
+                                message=""
+                            else
+                                message="no mark \'$register\'"
+                            fi
+                            ;;
+                    esac
+                    ;;
+            esac
+        else
+           n=$count
+        fi
+        ;;
+    "${keys['to-mark']}")
+        read -n 1 register
+        case $register in
+            $'\e')
+                ;;
+            *)
+                if [[ ${mark[$register]} ]]; then
                     n=${mark[$register]}
+                    message=""
+                else
+                    message="no mark \'$register\'"
                 fi
                 ;;
         esac
         ;;
-    "${keys['extract']}")
-        tput cup 0 0
-        read -n 1 -p "Save pages ${mark[1]} to ${mark[2]} to separate file? " res
-        if [[ $res == y ]]; then
-            tput cup 0 0
-            tput el
-            read -p "File name: " out
-            if [[ ! -e "$out" ]]; then 
-                extract_pdf ${mark[1]} ${mark[2]} "$out"
-            fi
+    "${keys['yank-pdf']}")
+        if [[ $count != "" ]]; then
+            extract_pdf $n $[$n + $count] 
+        else
+            read -n 1 command
+            case $command in
+                $'\e')
+                    ;;
+                "${keys['yank-pdf']}")
+                    extract_pdf $n $n
+                    ;;
+                "${keys['to-mark']}")
+                    read -n 1 register
+                    case $register in
+                        $'\e')
+                            ;;
+                        *)
+                            if [[ ${mark[$register]} ]]; then
+                                extract_pdf $n ${mark[$register]}
+                            else
+                                message="no mark \'$register\'"
+                            fi
+                            ;;
+                    esac
+                    ;;
+                [0-9])   
+                    ;;
+            esac
         fi
+        ;;
+     "${keys['yank-text']}")
+        if [[ $count != "" ]]; then
+            yank_text $n $[$n + $count] 
+        else
+            read -n 1 command
+            case $command in
+                $'\e')
+                    ;;
+                "${keys['yank-pdf']}")
+                    yank_text $n $n
+                    ;;
+                "${keys['to-mark']}")
+                    read -n 1 register
+                    case $register in
+                        $'\e')
+                            ;;
+                        *)
+                            if [[ ${mark[$register]} ]]; then
+                                yank_text $n ${mark[$register]}
+                            else
+                                message="no mark \'$register\'"
+                            fi
+                            ;;
+                    esac
+                    ;;
+                [0-9])   
+                    ;;
+            esac
+        fi
+        ;;
+    "${keys['yank-text']}")
+        yank_text $n
         ;;
     "${keys['help']}")
         print_help
+        message=""
         ;;
     "${keys['debug']}")
         debug
@@ -858,6 +1046,7 @@ text="$" # null search text for egrep
 trimmed="false" # set to true to default to trim margins
 split=false # don't split pages by default
 files=( )
+declare -A mark
 
 
 # Look for command line flags
