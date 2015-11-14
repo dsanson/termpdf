@@ -328,7 +328,7 @@ esac
 function page_limits() {
 if [[ $n == "" ]]; then n=1; fi
 if [ "${n%B}" -le 0 ]; then n=1; fi
-if [ "${n%B}" -ge "$pages" ]; then n="$pages"; fi
+if [ "${n%B}" -ge "$pages" ]; then n=$pages; fi
 }
 #
 ###########################################################################
@@ -355,7 +355,10 @@ function convert_page() {
 for i in "$@"
 do       
     if [[ ! -f "${tmp_file_root}-$i.png" ]]; then
-        if [[ $i -le $pages && $i -ge 1 ]]; then
+        if [[ $i =~ B$ ]]; then
+            convert_page ${i%B}
+            split_image ${i%B}
+        else
             case $ft in
                 pdf)
                     convert_pdf_cairo "$i"
@@ -378,20 +381,17 @@ do
                     fi
                     ;;
             esac
-            # generate split versions of page
-            if [[ $split != 'false' ]]; then
-               split_image $1
-            fi
-            # generate margin-trimmed version of the page
-            convert -trim "$tmp_file_root-$i.png" \
-                -bordercolor white -border 20x20 \
-                "$tmp_file_root-trimmed-$i.png" 2>/dev/null
-            if [[ "$split" != "false" ]]; then
-                convert -trim "$tmp_file_root-$iB.png" \
-                -bordercolor white -border 20x20 \
-                "$tmp_file_root-trimmed-$iB.png" 2>/dev/null
-            fi
+        fi 
+        # generate margin-trimmed version of the page
+        convert -trim "$tmp_file_root-$i.png" \
+            -bordercolor white -border 20x20 \
+            "$tmp_file_root-trimmed-$i.png" 2>/dev/null
+        if [[ "$split" != "false" ]]; then
+            convert -trim "$tmp_file_root-$iB.png" \
+            -bordercolor white -border 20x20 \
+            "$tmp_file_root-trimmed-$iB.png" 2>/dev/null
         fi
+
     fi
 done
 }
@@ -402,7 +402,10 @@ core=${n%B}
 k=1
 while ((k<=halo))
 do
-    convert_page $[$core + $k] $[$core - $k] 
+    after=$[$core + $k]
+    before=$[$core - $k]
+    [[ $after -le $pages ]] && convert_page $after
+    [[ $before -gt 0 ]] && convert_page $before
     let k++
 done
 )&
@@ -833,7 +836,7 @@ case "$command" in
     "${keys['mark-page']}")
         read -n 1 register
         case $register in
-            $'\e')
+            $'\e'|"")
                 ;;
             *)    
                 mark[$register]=$n
@@ -846,7 +849,7 @@ case "$command" in
         if [[ $count == "" ]]; then
             n=$pages
         else
-           n=$count
+            n=$count
         fi
         ;;
     "${keys['goto-page']}")   
