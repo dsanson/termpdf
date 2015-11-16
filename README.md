@@ -1,5 +1,5 @@
-README for termpdf
-==================
+termpdf
+=======
 
 `termpdf` is a barebones inline graphical PDF (and DJVU and TIF) viewer for
 terminals that support inline graphics.
