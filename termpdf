@@ -128,7 +128,7 @@ printf '\n'
 # Functions for displaying images using w3mimgdisplay
 #
 #
-# function that gets important info about merm windows 
+# function that gets important info about xterm windows 
 #
 function get_xterm_info() { 
 # move cursor to to left corner
@@ -186,10 +186,10 @@ y_pos=$(echo "$curs_y * $y_factor" | bc)
 
 function print_image_w3m() {
     #get the ratio of width to height for image
-    img_factor=$(convert "$tmp_file" -ping -format "scale=3; %w / %h\n" info: | bc)  
+    img_factor=$(convert "$tmp_file" -ping -format "scale=3; %w / %h\n" info: 2> /dev/null | bc )  
     #get ratio of width to height for our terminal/tmux pane
     screen_factor=$(echo "scale=3; ($width * $x_factor) / ($height * $y_factor)" | bc)
-    if [ $(echo "$img_factor < $screen_factor" | bc) == 1 ]; then
+    if [[ $(echo "$img_factor < $screen_factor" | bc) -eq 1 ]]; then
         # set height to max, set width proportional to height
         h=$[$height * y_factor]
         w=$(echo "$img_factor * $h" | bc | sed 's/\..*//')
@@ -197,9 +197,17 @@ function print_image_w3m() {
         # set width to max, height proportional to width
         w=$[$width * x_factor]
         h=$(echo "$w / $img_factor" | bc)
+        if [[ $h == "" || $w == "" ]]; then
+            print_image_w3m
+            return
+        fi
        echo
     fi
+    # center image
+    x_pos=$[$x_pos + ($width * $x_factor / 2) - ($w / 2)]
+    y_pos=$[$y_pos + ($height * $y_factor / 2) - ($h / 2)] 
     printf "0;1;$x_pos;$y_pos;$w;$h;;;;;$tmp_file\n4;\n3;" | w3mimgdisplay
+    tput cup $height 0
 }
 
 
@@ -470,7 +478,7 @@ esac
         
 function display_text_pdf() {
 clear
-
+/cel
 if [[ $text_pager == 'cat' ]]; then
     convert_pdf_to_text $text_conversion_method \
         | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
@@ -703,8 +711,7 @@ done
 }
 
 function debug() {
-test=$(read_string)
-#message=$(blank_if_not_integer $test) 
+printf "$clearstring" | w3mimgdisplay
 }
 
 function check_count() {

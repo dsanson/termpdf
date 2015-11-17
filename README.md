@@ -7,7 +7,7 @@ terminals that support inline graphics.
 ![screenshot]
 
 On OS X, it works with iTerm 2.9 or later (so for the moment you will need to
-install [the beta test release or a nightly build]). On X11, it should work
+install [the beta test release or a nightly build]). On X11, it should kinda work
 with any terminal that supports inline images in the w3m browser (I have
 tested it on Ubuntu using xterm and urxvt). I do not know if it works in the
 framebuffer.
@@ -110,6 +110,11 @@ pagers (default: `cat` and `less`). Set your clipboard handler (default
 `pbcopy`, which will only work on OSX). Tweak the key commands as you see fit.
 
 # Known issues
+
+X11 support is not very good. It seems like the w3mimgdisplay command is far
+more prone to break with incomplete png images(?) and so throws a lot more
+errors. Also, positioning images within tmux is very unreliable, and I don't
+understand how to clear images once drawn.
 
 Various events, like resizing panes, can cause tmux to overwrite the
 displayed page. Use the 'refresh display' command (`r`) to fix this.
