@@ -169,7 +169,7 @@ curs_pos=${curs_pos:2}
 curs_y=$(echo "$curs_pos" | awk -F ';' '{print $1}')
 curs_x=$(echo "$curs_pos" | awk -F ';' '{print $2}')
 curs_x=${curs_x%?}
-curs_x=$[$curs_x - 2]
+curs_x=$[$curs_x] 
 curs_y=$[$curs_y - 2]
 }
 
@@ -197,6 +197,7 @@ function print_image_w3m() {
         # set width to max, height proportional to width
         w=$[$width * x_factor]
         h=$(echo "$w / $img_factor" | bc)
+        if [[ $x_factor == "" || $y_factor == "" ]]; then get_xterm_font_factors; fi
         if [[ $h == "" || $w == "" ]]; then
             print_image_w3m
             return
@@ -204,8 +205,8 @@ function print_image_w3m() {
        echo
     fi
     # center image
-    x_pos=$[$x_pos + ($width * $x_factor / 2) - ($w / 2)]
-    y_pos=$[$y_pos + ($height * $y_factor / 2) - ($h / 2)] 
+     x_pos=$[$x_pos + ($width * $x_factor / 2) - ($w / 2)]
+     y_pos=$[$y_pos + ($height * $y_factor / 2) - ($h / 2)] 
     printf "0;1;$x_pos;$y_pos;$w;$h;;;;;$tmp_file\n4;\n3;" | w3mimgdisplay
     tput cup $height 0
 }
@@ -579,7 +580,7 @@ done
 function display_bar() {
 right_side="$n/$pages"
 if [[ ${#files[@]} -gt 1 ]]; then
-    right_side="$right_side [$cur_doc]"
+    right_side="$right_side [$cur_doc/${#files[@]}]"
 fi
 offset=$[$width - ${#right_side}]
 inset=5
@@ -689,7 +690,7 @@ function get_window_info() {
 get_pane_size
 if [[ "$os" != "Darwin" ]]; then
     get_xterm_info
-    get_xterm_font_factors
+#    get_xterm_font_factors
     get_xterm_position
 fi
 }
@@ -884,8 +885,8 @@ case "$command" in
             $'\e'|"")
                 ;;
             *)    
-                mark[$register]=$n
-                message="page $n stored in mark \'$register\'"
+                mark[$register]="$n:$cur_doc"
+                message="$n:$cur_doc stored in mark \'$register\'"
                 ;;
         esac
         ;;
@@ -914,8 +915,10 @@ case "$command" in
                             ;;
                         *)
                             if [[ ${mark[$register]} != "" ]]; then
-                                n=${mark[$register]}
+                                n=${mark[$register]%%:*}
+                                cur_doc=${mark[$register]##*:}
                                 message=""
+                                display_doc $cur_doc
                             else
                                 message="no mark \'$register\'"
                             fi
@@ -934,8 +937,10 @@ case "$command" in
                 ;;
             *)
                 if [[ ${mark[$register]} ]]; then
-                    n=${mark[$register]}
+                    n=${mark[$register]%%:*}
+                    cur_doc=${mark[$register]##*:}
                     message=""
+                    display_doc $cur_doc
                 else
                     message="no mark \'$register\'"
                 fi
@@ -960,14 +965,16 @@ case "$command" in
                             ;;
                         *)
                             if [[ ${mark[$register]} ]]; then
-                                extract_pdf $n ${mark[$register]}
+                                if [[ ${mark[$register]##*:} -eq $cur_doc ]]; then  
+                                    extract_pdf $n ${mark[$register]%%:*}
+                                else
+                                    message="mark not in current document"
+                                fi
                             else
                                 message="no mark \'$register\'"
                             fi
                             ;;
                     esac
-                    ;;
-                [0-9])   
                     ;;
             esac
         fi
@@ -990,7 +997,11 @@ case "$command" in
                             ;;
                         *)
                             if [[ ${mark[$register]} ]]; then
-                                yank_text $n ${mark[$register]}
+                                if [[ ${mark[$register]##*:} -eq $cur_doc ]]; then  
+                                    yank_text $n ${mark[$register]%%:*}
+                                else
+                                    message="mark not in current document"
+                                fi
                             else
                                 message="no mark \'$register\'"
                             fi

@@ -22,7 +22,10 @@ pane). Other features include:
 -   extract range of pages to pdf ([count]y, yy, y'[mark]) or as text (YY, Y'[mark])
 -   printing (p)
 
+All of this works pretty well on iTerm2 (but see the known issues). It is
+still wonky on X11.
 
+:q
 Installation
 ============
 
