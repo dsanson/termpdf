@@ -332,13 +332,16 @@ case $ft in
         pages=1 
         multipage='false'
 esac
+if [[ ! $pages =~ [0-9]* ]]; then
+    pages=1
+fi
 }
 
 # A function for validiating page numbers
 function page_limits() {
 if [[ $n == "" ]]; then n=1; fi
-if [ "${n%[AB]}" -le 0 ]; then n=1; fi
-if [ "${n%[AB]}" -ge "$pages" ]; then n=$pages; fi
+if [[ "${n%[AB]}" -le 0 ]]; then n=1; fi
+if [[ "${n%[AB]}" -ge "$pages" ]]; then n=$pages; fi
 }
 #
 ###########################################################################
@@ -549,7 +552,7 @@ function open_file() {
     read -e -p "Open: " new_file
     if [[ -r $new_file ]]; then
         files=( "${files[@]}" "$new_file" )
-        display_doc $[${#files[@]} - 1 ]
+        switch_doc $[${#files[@]} - 1 ]
     else
         message="No such file"
     fi
@@ -600,14 +603,39 @@ rm "${tmp_dir}/tmp"*
 
 function print_file() {
 display_bar
-read -n 1 -p "Print document? " res
+read -n 1 -p "Print $1 copies of document? " res
 if [[ $res == 'y' ]]; then
     message="printing..."
     display_bar
-    $print_command ${print_options[@]} "$input_file"
+    $print_command ${print_options[@]} -n $1 "$input_file"
     message="print job sent"
 fi
 }
+
+function switch_doc() {
+    nd=$1
+    np=$2
+    # validate nd
+    if [[ $nd -gt ${#files[@]} ]]; then 
+        nd=$[0 + ($nd - ${#files[@]})]
+    fi
+    if [[ $nd -le 0 ]]; then
+        nd=$[${#files[@]} + $nd]
+    fi
+    # store current document page number and split
+    doc_num[$cur_doc]=$n
+    doc_split[$cur_doc]=$split
+    # fetch new document number and split
+    if [[ $np != "" ]]; then
+        n=$np
+    else
+        n=${doc_num[$1]}
+    fi
+    split=${doc_split[$1]}
+    display_doc $nd
+}
+
+
 
 function check_dependencies() {
 
@@ -764,28 +792,13 @@ case "$command" in
         ;;
     "${keys['next-doc']}")
         check_count
-        doc_num[$cur_doc]=$n
-        doc_split[$cur_doc]=$split
-        cur_doc=$[$cur_doc + ( $count % ${#files[@]} )]
-        if [[ $cur_doc -ge ${#files[@]} ]]; then
-            cur_doc=0
-        fi
-        n=${doc_num[$cur_doc]}
-        split=${doc_split[$cur_doc]}
-        display_doc $cur_doc
+        new_doc=$[$cur_doc + ( $count % ${#files[@]} )]
+        switch_doc $new_doc
         ;;
     "${keys['previous-doc']}")
         check_count
-        doc_num[$cur_doc]=$n
-        doc_split[$cur_doc]=$split
-        if [[ $cur_doc -ne 0 ]]; then
-            cur_doc=$[ $cur_doc - ( $count % ${#files[@]} )]
-        else
-            cur_doc=$[ ${#files[@]} - 1]
-        fi
-        n=${doc_num[$cur_doc]}
-        split=${doc_split[$cur_doc]}
-        display_doc $cur_doc
+        new_doc=$[ $cur_doc - ( $count % ${#files[@]} )]
+        switch_doc $new_doc 
         ;;
     "${keys['refresh-view']}")
         get_window_info # clean up and resize to fit pane
@@ -843,7 +856,8 @@ case "$command" in
         message=""
         ;;
     "${keys['print']}")
-        print_file
+        check_count
+        print_file $count
         ;;
     "${keys['wrap-toggle']}")
         if [ $wrap == "true" ]; then
@@ -915,10 +929,8 @@ case "$command" in
                             ;;
                         *)
                             if [[ ${mark[$register]} != "" ]]; then
-                                n=${mark[$register]%%:*}
-                                cur_doc=${mark[$register]##*:}
                                 message=""
-                                display_doc $cur_doc
+                                switch_doc ${mark[$register]##*:} ${mark[$register]%%:*}
                             else
                                 message="no mark \'$register\'"
                             fi
