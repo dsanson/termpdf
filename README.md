@@ -78,10 +78,10 @@ But any image files that Imagemagick can convert to png should be displayed.
 
 While viewing a file, the default key commands are:
 
-       [count]j     page back
-       [count]k     page forward
+       [count]k     page back
+       [count]j     page forward
        enter/space  page forward
-       J/K:         previous document/next document
+       K/J:         previous document/next document
        [count]g:    go to page number [count]
        gg:          go to first page
        g'[mark]     go to page stored in [mark]
