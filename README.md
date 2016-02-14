@@ -30,8 +30,7 @@ Installation
 ============
 
 `termpdf` is a bash script. Put it somewhere in your path and make sure it has
-the appropriate permissions (i.e., `chmod u+x termpdf`).
-
+the appropriate permissions (i.e., `chmod u+x termpdf`). 
 Dependencies:
 
 -   w3m (for X11) or iTerm2 2.9 or greater (for OS X)
@@ -41,6 +40,10 @@ Dependencies:
 On OSX, install these via homebrew with
 
     brew install gs imagemagick poppler pdfgrep djvulibre selecta
+
+`termpdf` requires at least Bash 4.0 to run, so you may need to upgrade it with
+
+	brew install bash
 
 On Ubuntu, you will need to download selecta and put it in your path.
 Everything else can be installed via apt-get with
