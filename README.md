@@ -25,7 +25,6 @@ pane). Other features include:
 All of this works pretty well on iTerm2 (but see the known issues). It is
 still wonky on X11.
 
-:q
 Installation
 ============
 
