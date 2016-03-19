@@ -32,10 +32,10 @@ text_pagers[1]='less -XFRE' # secondary pager is 'less'
 #
 declare -A keys
 keys=(
-  ["next-page"]="k"
-  ["previous-page"]="j"
-  ["next-doc"]="K"
-  ["previous-doc"]="J"
+  ["next-page"]="j"
+  ["previous-page"]="k"
+  ["next-doc"]="J"
+  ["previous-doc"]="K"
   ["goto-page"]="g"
   ["goto-last"]="G"
   ["refresh-view"]="r"
@@ -1155,7 +1155,7 @@ done
 
 
 # Make a tmp_dir
-tmp_dir=$(mktemp -d)
+tmp_dir="$(mktemp -q -d -t "termpdftemp.XXXXXX" 2>/dev/null || mktemp -q -d)"
 # Check to see that a file was specified on the cli
 if [[ ${#files[@]} == 0 ]]; then 
     get_pane_size

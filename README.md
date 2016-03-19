@@ -30,8 +30,7 @@ Installation
 ============
 
 `termpdf` is a bash script. Put it somewhere in your path and make sure it has
-the appropriate permissions (i.e., `chmod u+x termpdf`).
-
+the appropriate permissions (i.e., `chmod u+x termpdf`). 
 Dependencies:
 
 -   w3m (for X11) or iTerm2 2.9 or greater (for OS X)
@@ -41,6 +40,10 @@ Dependencies:
 On OSX, install these via homebrew with
 
     brew install gs imagemagick poppler pdfgrep djvulibre selecta
+
+`termpdf` requires at least Bash 4.0 to run, so you may need to upgrade it with
+
+	brew install bash
 
 On Ubuntu, you will need to download selecta and put it in your path.
 Everything else can be installed via apt-get with
@@ -78,10 +81,10 @@ But any image files that Imagemagick can convert to png should be displayed.
 
 While viewing a file, the default key commands are:
 
-       [count]j     page back
-       [count]k     page forward
+       [count]k     page back
+       [count]j     page forward
        enter/space  page forward
-       J/K:         previous document/next document
+       K/J:         previous document/next document
        [count]g:    go to page number [count]
        gg:          go to first page
        g'[mark]     go to page stored in [mark]
