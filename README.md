@@ -1,140 +1,144 @@
 termpdf
 =======
 
-`termpdf` is a barebones inline graphical PDF (and DJVU and TIF) viewer for
-terminals that support inline graphics.
+`termpdf` is a barebones inline graphical PDF (and DJVU) viewer for
+iTerm 2.9 or later on OS X. It is a ridiculous hack---a bash script wrapped around
+some special terminal escape codes. But it works well enough for me to be
+useful.
 
 ![screenshot]
 
-On OS X, it works with iTerm 2.9 or later (so for the moment you will need to
-install [the beta test release or a nightly build]). On X11, it should kinda work
-with any terminal that supports inline images in the w3m browser (I have
-tested it on Ubuntu using xterm and urxvt). I do not know if it works in the
-framebuffer.
+Features
+========
 
-Pages are automatically sized to fit within the terminal window (or tmux
+Each page of the PDF is sized to fit within your terminal window (or tmux
 pane). Other features include:
 
--   smart zoom (autocrop margins) (z)
--   vertical and horizontal split page views (s, v)
--   text search/text view (/[search], [count]n, [count]N, t)
--   vim-style navigation ([count]j,[count]k, [count]g, [count]G, gg, G, g'[mark]
--   extract range of pages to pdf ([count]y, yy, y'[mark]) or as text (YY, Y'[mark])
--   printing (p)
+-   basic "vim-style" navigation
+-   cropping of margins (using `k2pdfopt`)
+-   extracting (yanking) pages and saving them to a new pdf
+-   printing
+-   opening a text file for annotation in a split pane in tmux
 
-All of this works pretty well on iTerm2 (but see the known issues). It is
-still wonky on X11.
+Requirements
+============
+
+OS X and iTerm 2 > 2.9
+-------------
+
+This only works on OS X because iTerm 2 is only available on OS X. A
+previous version of the script tried to support X11 using `w3mimgdisplay`,
+but that didn't work and made everything a lot more complicated, so I 
+removed it.
+
+Support for inline images was added in iTerm 2.9. So, at least for now, that
+means you will need to install [the beta test release or a nightly build]. 
+
+Poppler
+-------
+
+The script uses `pdfseparate` to separate PDF documents into separate pages,
+and `pdfinfo` to figure out how many pages a PDF document has. These commands
+are provided by [Poppler]:
+
+    $ brew install poppler
+
+DJVULibre and Ghostscript
+-------------------------
+
+The script uses `djvups` and `ps2pdf` to extract pages from DJVU documents and
+convert them to PDF, and `djvudump` to figure out how many pages a DJVU
+document has. These commands are provided by DJVULibre and Ghostscript:
+
+    $ brew install ghostscript djvulibre
+
+K2pdfopt
+--------
+
+The simplest tool I could find for automatically cropping margins on PDF
+documents was [`k2pdfopt`](http://willus.com/k2pdfopt/). If you don't care
+about cropping margins, you don't need this. If you know of a way of doing
+this that is simpler, let me know! (In a previous version of the script, I
+used ImageMagick's `convert`, but that was in part because I was converting
+each page to a PNG file.)
+
+Bash 4.x
+--------
+
+Bash 3.x is shipped with OS X. Bash 4.x adds associative arrays. A previous
+version of the script required Bash 4.x, because it made heavy use of
+associative arrays. This version only requires Bash 4.x if you want support
+for marks.
+
+    $ brew install bash
+
 
 Installation
 ============
 
 `termpdf` is a bash script. Put it somewhere in your path and make sure it has
 the appropriate permissions (i.e., `chmod u+x termpdf`). 
-Dependencies:
-
--   w3m (for X11) or iTerm2 2.9 or greater (for OS X)
--   Ghostscript, ImageMagick, Poppler, `pdfgrep`, djvulibre,
-    [selecta](https://github.com/garybernhardt/selecta)
-
-On OSX, install these via homebrew with
-
-    brew install gs imagemagick poppler pdfgrep djvulibre selecta
-
-`termpdf` requires at least Bash 4.0 to run, so you may need to upgrade it with
-
-	brew install bash
-
-On Ubuntu, you will need to download selecta and put it in your path.
-Everything else can be installed via apt-get with
-
-    sudo apt-get install ghostscript imagemagick poppler-utils pdfgrep
-    djvulibre-bin w3m-img
-
-
-w3mimgdisplay (X11 only)
-========================
-
-When you install w3m with inline graphic support, it includes a helper
-program, `w3mimgdisplay`. But by default, this is not placed in your path. You
-need to find it and add it to your path, so termpdf can use it.
-
-On my copy of Ubuntu, it is at `/usr/lib/w3m/w3mimgdisplay`. So I made a
-symbolic link in `/usr/local/bin`:
-
-    sudo ln -s /usr/lib/w3m/w3mimgdisplay /usr/local/bin/w3mimgdisplay
-
 
 Usage
 =====
 
 ```.bash
-$ termpdf [options] file [files...]
-
-    -h or --help to get some help
-    -t or --text to display text instead of images
-    -n <number> to open the first document at a given page number.
+$ termpdf <file> 
 ```
 
-File type is determined by extension ('pdf', 'djvu', 'tif', 'tiff', or 'png').
-But any image files that Imagemagick can convert to png should be displayed.
+File type is determined by extension ('pdf' and 'djvu' are currently the only
+two supported formats).
 
 While viewing a file, the default key commands are:
 
-       [count]k     page back
-       [count]j     page forward
-       enter/space  page forward
-       K/J:         previous document/next document
-       [count]g:    go to page number [count]
-       gg:          go to first page
-       g'[mark]     go to page stored in [mark]
-       G:           go to last page
-       NNN:         go to page number NNN
-       / <expr>     go to page with first match for <expr>
-       m[mark]      store page in [mark]
-       n:           go to next match for <expr>
-       N:           go to previous match for <expr>
-       r:           refresh display
-       R:           reload document
-       z:           toggle autocropped margins
-       t:           toggle text/image display
-       s:           split pages horizontally
-       v:           split pages vertically
-       p:           print document
-       l:           toggle text pager 
-       w:           wrap lines in text mode
-       y:           yank page[s] and save as PDF
-       Y:           yank page[s] as text to clipboard
-       ?:           help
-       q:           quit
+    enter/space: forward one page
+    [n]k/j:      forward or back [n] pages
+    [n]G:        go to page [n]
+    G:           go to last page
+    gg:          go to first page
+    [n]p:        print [n copies of] document
+    [n]y:        yank [n] pages forward and save as pdf
+    yy:          yank current page and save as pdf
+    r:           refresh display
+    R:           reload document
+    c:           crop margins
+    a:           annotate in split pane
+    m[r]:        store current page in register [r]
+    '[r]:        go to page stored in register [r]
+    g'[r]:       go to to page in register [r]
+    y'[r]:       yank from current page to mark and save as pdf
+    q:           quit
+    h:           view this help
 
-# Settings
+These commands are all set by the `keys()` function, so they are easy enough
+to change as you see fit.
 
-Settings are at the beginning of the script. Set your print command and
-options (default: `lp -o sides=two-sided-long-edge`). Set your preferred text
-pagers (default: `cat` and `less`). Set your clipboard handler (default
-`pbcopy`, which will only work on OSX). Tweak the key commands as you see fit.
+There is also rudimentary undocumented support for `:` style commands, e.g.,
+
+    :first                                go to first page
+    :last                                 go to last page
+    :print <copies> <page-range>
+    :gui                                  open the document in your default
+                                             PDF viewer (e.g., Preview.app)
+    :marks                                list marks
+    :quit                                 quit
+
+This is mostly useless, because bash's `read` command doesn't support
+customizable autocompletion when called within scripts. But it is there. 
 
 # Known issues
 
-X11 support is not very good. It seems like the w3mimgdisplay command is far
-more prone to break with incomplete png images(?) and so throws a lot more
-errors. Also, positioning images within tmux is very unreliable, and I don't
-understand how to clear images once drawn.
-
-Various events, like resizing panes, can cause tmux to overwrite the
+Various events, like resizing panes, can cause tmux to clobber the
 displayed page. Use the 'refresh display' command (`r`) to fix this.
 
-Sometimes, the script will display a page before it was finished
-converting, or try to display a page before it has been converted at all.
-Again, using the 'refresh display' command (`r`) should fix this.
-
-Switching between vertical and horizontal splits causes problems because the
-implementation is poorly designed.
+There is no robust error checking. This is just a bash script.
 
 # TODO
 
--   refactor command parsing to make it more consistently vim-like
--   add command-line mode
+-   support for TIFF files: removed when the script was rewritten; should not
+    be hard to add back in.
+-   implement search using `pdfgrep`. This was in an earlier version of the
+    script, but was removed because it was complicated.
 -   rewrite in real language (using ncurses?)
 
   [the beta test release or a nightly build]: https://iterm2.com/downloads.html

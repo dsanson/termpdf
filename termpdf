@@ -1,1169 +1,807 @@
 #!/usr/bin/env bash
-###########################################################################
-# termpdf is a barebones in-line graphical pdf viewer for terminals that
-# support in-line graphics.
-#
-# It currently supports pdf, djvu, and tif files.
-#
-# On X11, termpdf uses the w3mimgdisplay program supplied with the w3m 
-# browser. On OSX, termpdf relies on iTerm2's support of inline images 
-# (in iTerm 2.9 or later).
-# 
-###########################################################################
 
-###########################################################################
-# SETTINGS
-#
-print_command=lp
-print_options=("-o sides=two-sided-long-edge")
-#
-text_conversion_method=pdftotext
-#text_conversion_method=html_pandoc
-#
-clipboard="pbcopy"
-#
-wrap="false" # default is not to pipe text through wrap in text mode 
-#
-text_pagers[0]='cat' # default pager is 'cat'
-#
-text_pagers[1]='less -XFRE' # secondary pager is 'less'
-#
-# command keys:
-#
-declare -A keys
-keys=(
-  ["next-page"]="j"
-  ["previous-page"]="k"
-  ["next-doc"]="J"
-  ["previous-doc"]="K"
-  ["goto-page"]="g"
-  ["goto-last"]="G"
-  ["refresh-view"]="r"
-  ["reload-document"]="R"
-  ["crop-margins"]="z"
-  ["text"]="t"
-  ["horizontal-split"]="s"
-  ["vertical-split"]="v"
-  ["print"]="p"
-  ["pager-toggle"]="l"
-  ["wrap-toggle"]="w"
-  ["yank-text"]="Y"
-  ["search"]="/"
-  ["next-match"]="n"
-  ["previous-match"]="N"
-  ["mark-page"]="m"
-  ["to-mark"]="'"
-  ["next-mark"]="]" # not implemented
-  ["previous-mark"]="[" # not implemented
-  ["yank-pdf"]="y"
-  ["open-file"]="o"
-  ["help"]="?"
-  ["debug"]="d"
-  ["quit"]="q"
-)
-#
-display="image" # if you want to display text by default, set this to "text" 
-#
-halo=2 # number of pages out to convert in the background
-###########################################################################
-
-###########################################################################
-# Functions for displaying images in iTerm2
-#
-# The following two functions are borrowed from the imgcat script at
-# 
-#   https://raw.githubusercontent.com/gnachman/iTerm2/master/tests/imgcat
-#
-# tmux requires unrecognized OSC sequences to be wrapped with DCS tmux;
-# <sequence> ST, and for all ESCs in <sequence> to be replaced with ESC ESC. It
-# only accepts ESC backslash for ST.
-function print_osc() {
-if [[ $TERM == screen* ]] ; then
-    printf "\033Ptmux;\033\033"
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+    message="upgrade to bash 4 to enable marks"
 else
-    printf "\033"
+    declare -A marks
+    enable_marks="true"
 fi
+
+###########################################################################
+# termpdf is a barebones inline pdf and djvu viewer for iTerm versions 2.9
+# and later.
+#
+# It is a ridiculous hack, but it usually works for me.
+###########################################################################
+
+###########################################################################
+# Functions for displaying images in iTerm2, adapted from the imgcat 
+# script at 
+#   https://raw.githubusercontent.com/gnachman/iTerm2/master/tests/imgcat
+###########################################################################
+
+###########################################################################
+# tmux requires unrecognized OSC sequences to be wrapped with DCS tmux;
+# <sequence> ST, and for all ESCs in <sequence> to be replaced with ESC ESC.
+# It only accepts ESC backslash for ST.
+###########################################################################
+
+function print_osc() {
+    if [[ $TERM == screen* ]] ; then
+        printf "\033Ptmux;\033\033"
+    else
+        printf "\033"
+    fi
 }
 
 function print_st() {
-if [[ $TERM == screen* ]] ; then
-    printf "\a\033\\"
-else
-    printf "\a"
-fi
+    if [[ $TERM == screen* ]] ; then
+        printf "\a\033\\"
+    else
+        printf "\a"
+    fi
 }
 
-# This function is also borrowed from imgcat, but I've added support
-# for specifying width and height.
-#
-# print_image filename inline base64contents
+###########################################################################
+# print_image filename inline base64contents width height
 #   filename: Filename to convey to client
 #   inline: 0 or 1
 #   base64contents: Base64-encoded contents
-function print_image_iterm() {
-print_osc
-printf ']1337;File='
-if [[ -n "$1" ]]; then
-    printf 'name='`echo -n "$1" | base64`";"
-fi
-if $(base64 --version 2>&1 | grep GNU > /dev/null)
-then
-    BASE64ARG=-d
-else
-    BASE64ARG=-D
-fi
-echo -n "$3" | base64 $BASE64ARG | wc -c | awk '{printf "size=%d",$1}'
-printf ";inline=$2"
-printf ";width=$width"
-printf ";height=$height"
-printf ":"
-echo "$3"
-print_st
-printf '\n'
-}
-#
+#   width: width to render image (in characters)
+#   height: height to render image (in characters)
 ###########################################################################
 
-###########################################################################
-# Functions for displaying images using w3mimgdisplay
-#
-#
-# function that gets important info about xterm windows 
-#
-function get_xterm_info() { 
-# move cursor to to left corner
-tput cup 2 2 # but not 0 0, because that often breaks in tmux
-
-# use escape codes to get window dimensions and cursor position
-exec < /dev/tty
-oldstty=$(stty -g)
-stty raw -echo min 0 
-print_osc > /dev/tty
-printf "[14t" > /dev/tty # win size in pixels
-print_st > /dev/tty
-read -sr px_dim # win size in pixels
-print_osc > /dev/tty
-printf "[18t" > /dev/tty # win size in characters
-print_st > /dev/tty
-read char_dim # win size in characters
-print_osc > /dev/tty
-printf "[6n" > /dev/tty # cursor position in characters
-print_st > /dev/tty
-read curs_pos
-stty $oldstty
-
-# process the output
-# window dimension in pixels
-px_dim=${px_dim:2}
-px_y=$(echo "$px_dim" | awk -F ';' '{print $2}')
-px_x=$(echo "$px_dim" | awk -F ';' '{print $3}')
-px_x=${px_x%?}
-# window dimension in characters
-char_dim=${char_dim:2}
-char_y=$(echo "$char_dim" | awk -F ';' '{print $2}')
-char_x=$(echo "$char_dim" | awk -F ';' '{print $3}')
-char_x=${char_x%?}
-# cursor position in characters
-# (we need this to position images within tmux panes)
-curs_pos=${curs_pos:2}
-curs_y=$(echo "$curs_pos" | awk -F ';' '{print $1}')
-curs_x=$(echo "$curs_pos" | awk -F ';' '{print $2}')
-curs_x=${curs_x%?}
-curs_x=$[$curs_x] 
-curs_y=$[$curs_y - 2]
-}
-
-function get_xterm_font_factors() {
-x_factor=$(echo "$px_x / ( $char_x + 1)" | bc)
-y_factor=$(echo "$px_y / ( $char_y + 1)" | bc)
-}
-
-# get xterm position in pixels
-function get_xterm_position() {
-x_pos=$(echo "$curs_x * $x_factor" | bc)
-y_pos=$(echo "$curs_y * $y_factor" | bc)
-}
-
-function print_image_w3m() {
-    #get the ratio of width to height for image
-    img_factor=$(convert "$tmp_file" -ping -format "scale=3; %w / %h\n" info: 2> /dev/null | bc )  
-    #get ratio of width to height for our terminal/tmux pane
-    screen_factor=$(echo "scale=3; ($width * $x_factor) / ($height * $y_factor)" | bc)
-    if [[ $(echo "$img_factor < $screen_factor" | bc) -eq 1 ]]; then
-        # set height to max, set width proportional to height
-        h=$[$height * y_factor]
-        w=$(echo "$img_factor * $h" | bc | sed 's/\..*//')
-    else
-        # set width to max, height proportional to width
-        w=$[$width * x_factor]
-        h=$(echo "$w / $img_factor" | bc)
-        if [[ $x_factor == "" || $y_factor == "" ]]; then get_xterm_font_factors; fi
-        if [[ $h == "" || $w == "" ]]; then
-            print_image_w3m
-            return
-        fi
-       echo
-    fi
-    # center image
-     x_pos=$[$x_pos + ($width * $x_factor / 2) - ($w / 2)]
-     y_pos=$[$y_pos + ($height * $y_factor / 2) - ($h / 2)] 
-    printf "0;1;$x_pos;$y_pos;$w;$h;;;;;$tmp_file\n4;\n3;" | w3mimgdisplay
-    tput cup $height 0
-}
-
-
-###########################################################################
-
-
-###########################################################################
-# Function for displaying images, depending on OS
-#
 function print_image() {
-    if [[ $os == 'Darwin' ]]; then
-        print_image_iterm $@
-    else
-        print_image_w3m $@
+    print_osc
+    printf ']1337;File='
+    if [[ -n "$1" ]]; then
+        printf 'name='`echo -n "$1" | base64`";"
     fi
+    if $(base64 --version 2>&1 | grep GNU > /dev/null)
+    then
+        BASE64ARG=-d
+    else
+        BASE64ARG=-D
+    fi
+    echo -n "$3" | base64 $BASE64ARG | wc -c | awk '{printf "size=%d",$1}'
+    printf ";inline=$2"
+    printf ";width=$4"
+    printf ";height=$5"
+    printf ":"
+    echo "$3"
+    print_st
+    printf '\n'
 }
-#
-###########################################################################
-
-
-###########################################################################
-# Functions for searching, yanking, text within documents 
-
-function select_results() {
-# if selecta is available, interactive selection of matches
-    command -v selecta >/dev/null 2>&1 && {
-    index=$(for res in ${results[@]}; do
-        echo ${index}:$res
-        let index++
-    done | selecta)
-    index=${index%%:*}
-    }
-}
-# A function for listing search results and selecting
-
-# A function that uses pdfgrep to search pdfs
-function search_pdf() {
-text=$(read_string)
-if [[ $text != "" ]]; then
-    IFS=$'\n' results=( $(pdfgrep -niC $[$width - 10] "$text" "$input_file") )
-fi
-
-if [ ${#results[@]} -gt 0 ]; then 
-    index=0
-    while [[ ${results[$index]%%:*} -lt $n ]] # find first match at or after page
-    do
-        let index++
-    done
-    select_results
-    message="${results[$index]#*:}"
-else 
-    index=-1
-fi
-}
-
-# A function for finding text using the appropriate tool
-function find_text() {
-case $ft in
-    pdf)
-        search_pdf
-        ;;
-    *)
-        message="text search not available"
-        ;;
-esac
-}
-
-# A function for yanking text from current page to clipboard
-function yank_text() {
-if [[ $1 -gt $2 ]]; then 
-    start_page=$2
-    end_page=$1
-else
-    start_page=$1
-    end_page=$2
-fi
-case $ft in
-    pdf)
-        pdftotext -f $start_page -l $end_page -layout "$input_file" - | $clipboard 
-        message="pages $start_page to $end_page copied to clipboard"
-        ;;
-    djvu)
-        djvutxt -page=$start_page-$end_page "$input_file" | $clipboard 
-        message="page copied to clipboard"
-        ;;
-esac
-}
-#
-###########################################################################
 
 
 ###########################################################################
 # A function for getting the dimensions of the current terminal
 # window or pane.
-function get_pane_size() {
-width=$(tput cols)
-height=$(stty size | awk '{print $1}')
-width=$(expr $width - 1)
-height=$(expr $height - 1 )
-}
 ###########################################################################
+
+function get_pane_size() {
+    width=$(tput cols)
+    height=$(stty size | awk '{print $1}')
+    width=$(expr $width - 1)
+    height=$(expr $height - 1 )
+}
 
 ###########################################################################
 # Functions for dealing with pages
-#
-function get_pages() {
-case $ft in
-    pdf)
-        pages=$(pdfinfo "$input_file" 2>/dev/null \
-            | grep "^Pages:" | awk '{print $2}') 
-        ;;
-    djvu)
-        pages=$(djvudump "$input_file" 2>/dev/null \
-            | sed -n '2s/.*files //;s/ pages)//p')
-        ;;
-    tif|tiff)
-        pages=$(tiffinfo "$input_file" 2>/dev/null \
-            | sed -n 's/ *Page Number:.*-//p' | sed -n '1p')
-        ;;
-    *)
-        pages=1 
-        multipage='false'
-esac
-if [[ ! $pages =~ [0-9]* ]]; then
-    pages=1
-fi
-}
-
-# A function for validiating page numbers
-function page_limits() {
-if [[ $n == "" ]]; then n=1; fi
-if [[ "${n%[AB]}" -le 0 ]]; then n=1; fi
-if [[ "${n%[AB]}" -ge "$pages" ]]; then n=$pages; fi
-}
-#
 ###########################################################################
 
-###########################################################################
-# Image conversion functions
-#
-
-function split_image() {
-if [[ $split == 'vert' ]]; then geo='50%x100%'; fi
-if [[ $split == 'horiz' ]]; then geo='100%x50%'; fi
-convert ${tmp_file_root}-$1.png \
-    -crop $geo +repage \
-    ${tmp_file_root}-$1-%d.png 
-mv ${tmp_file_root}-$1-0.png ${tmp_file_root}-${1}A.png
-mv ${tmp_file_root}-$1-1.png ${tmp_file_root}-${1}B.png
-# generate margin-trimmed version of the split page
-convert -trim "$tmp_file_root-${1}A.png" \
-    -bordercolor white -border 20x20 \
-    "${tmp_file_root}-trimmed-${1}A.png" #2>/dev/null
-convert -trim "$tmp_file_root-${1}B.png" \
-    -bordercolor white -border 20x20 \
-    "${tmp_file_root}-trimmed-${1}B.png" #2>/dev/null
-}
-
-function convert_pdf_cairo() {
-pdftocairo -f $1 -l $1 -png -singlefile "$input_file" "${tmp_file_root}-$1"
-}
-
-# 
-function convert_page() {
-for i in "$@"
-do       
-    # don't attempt background conversions if tmp_dir has been deleted
-    if [[ ! -d "${tmp_dir}" ]]; then exit; fi 
-    # don't convert pages that have already been converted
-    if [[ ! -f "${tmp_file_root}-$i.png" ]]; then
-        if [[ $i =~ [AB]$ ]]; then
-            convert_page ${i%[AB]}
-            split_image ${i%[AB]}
-        else
-            case $ft in
-                pdf)
-                    convert_pdf_cairo "$i"
-                    ;;
-                djvu)
-                    djvups -page=$i "$input_file" \
-                        | convert -flatten ps:- "${tmp_file_root}-$i.png"
-                    ;;
-                tif|tiff)
-                    convert -flatten "${input_file}[$[$i - 1]]" "${tmp_file_root}-$i.png"
-                    ;;
-                png)
-                    cp "${input_file}" "${tmp_file_root}-$i.png" 
-                    ;;
-                *)
-                    if [[ $os == 'Darwin' ]]; then
-                        sips -s format png "${input_file}" --out "${tmp_file_root}-$i.png"
-                    else
-                        convert "${input_file}" "${tmp_file_root}-$i.png"
-                    fi
-                    ;;
-            esac
-        fi 
-        # generate margin-trimmed version of the page
-        convert -trim "$tmp_file_root-$i.png" \
-            -bordercolor white -border 20x20 \
-            "${tmp_file_root}-trimmed-$i.png" #2>/dev/null
-    fi
-done
-}
-
-function convert_background() {
-(
-core=${n%[AB]}
-k=1
-while ((k<=halo))
-do
-    after=$[$core + $k]
-    before=$[$core - $k]
-    [[ $after -le $pages ]] && convert_page $after
-    [[ $before -gt 0 ]] && convert_page $before
-    let k++
-done
-)&
-}
-#
-###########################################################################
-
-
-###########################################################################
-# PDF utilities
-#
-# extract_pdf <page_no> <page_no> output_file
-# 
-function extract_pdf() {
-if [[ $1 -gt $2 ]]; then 
-    start_page=$2
-    end_page=$1
-else
-    start_page=$1
-    end_page=$2
-fi
-message=""
-display_bar
-read -e -p "<$start_page:$end_page>Save as: " out 
-if [[ "$out" == "" ]]; then
-    return
-fi
-if [[ ! "$out" =~ .pdf$ ]]; then
-    out="${out}.pdf"
-fi
-
-if [[ ! -e "$out" ]]; then 
-    pdftocairo -f $start_page -l $end_page -pdf "$input_file" "$out" 
-    message="pages $start_page to $end_page saved as $out"
-else
-    message="file already exists"
-fi
-}
-
-
-
-###########################################################################
-# Text Conversion and Display functions
-#
-function convert_pdf_to_text() {
-case $1 in
-    pdftotext)
-        pdftotext -f $n -l $n -layout "$input_file" -
-        ;;
-    html_pandoc)
-        pdftohtml -f $n -l $n -i -noframes "$input_file" -stdout \
-            | pandoc -f html -t plain --no-wrap
-        ;;
-esac
-}
-        
-function display_text_pdf() {
-clear
-/cel
-if [[ $text_pager == 'cat' ]]; then
-    convert_pdf_to_text $text_conversion_method \
-        | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
-        | egrep --color "$text|\$" 
-else
-    convert_pdf_to_text $text_conversion_method \
-        | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
-        | $text_pager $([[ $text ]] && -p$text)
-fi
-}
-
-function display_text_djvu() {
-clear
-if [[ $text_pager == 'cat' ]]; then
-    djvutxt -page=$n "$input_file" \
-        | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
-        | egrep --color "$text|\$" 
-else
-    djvutxt -page=$n "$input_file" \
-        | if [ $wrap == 'true' ]; then wrap -w $width; else cat; fi \
-        | $text_pager $([[ $text ]] && -p$text)
-fi
-}
-
-function display_text() {
-case $ft in
-    pdf)
-        display_text_pdf
-        ;;
-    djvu)
-        display_text_djvu
-        ;;
-    *)
-        message="text display not available"
-        ;;
-esac
-}
-#
-###########################################################################
-
-###########################################################################
-# Miscellaneous functions
-#
-
-function display_banner() {
-banner[1]=" _                                _  __ "
-banner[2]="| |_ ___ _ __ _ __ ___  _ __   __| |/ _|"
-banner[3]="| __/ _ \ '__| '_ \` _ \| '_ \ / _\` | |_ "
-banner[4]="| ||  __/ |  | | | | | | |_) | (_| |  _|"
-banner[5]=" \__\___|_|  |_| |_| |_| .__/ \__,_|_|  "
-banner[6]="                       |_|              "
-clear
-start_row=$[($height/2) - 3]
-start_col=$[($width/2) - (${#banner[1]}/2)]
-if [[ ${#banner[1]} -gt $width ]]; then
-    start_col=0
-fi
-tput cup $start_row 0
-for line in "${banner[@]}"; do
-    printf "%*s%s\n" $start_col " " "$line"
-done
-}
-
-function open_file() {
-    message=""
-    display_bar
-    read -e -p "Open: " new_file
-    if [[ -r $new_file ]]; then
-        files=( "${files[@]}" "$new_file" )
-        switch_doc $[${#files[@]} - 1 ]
-    else
-        message="No such file"
-    fi
-}
-
-function read_string() {
-string=""
-while true
-do
-    read -n 1 input
-    case $input in
-        $'\e')
-            string=""
-            break
+function get_total_number_of_pages() {
+    case $filetype in
+        pdf)
+            total_pages=$(pdfinfo "$1" 2>/dev/null \
+                | grep "^Pages:" | awk '{print $2}') 
             ;;
-        '')
-            break
+        djvu)
+            total_pages=$(djvudump "$1" 2>/dev/null \
+                | sed -n '2s/.*files //;s/ pages)//p')
+            ;;
+        tif|tiff)
+            total_pages=$(tiffinfo "$1" 2>/dev/null \
+                | sed -n 's/ *Page Number:.*-//p' | sed -n '1p')
             ;;
         *)
-            string="${string}${input}"
-            ;;
+            total_pages=1 
     esac
-done
-    printf "$string"
+
+    if [[ ! $total_pages =~ [0-9]* ]]; then
+        total_pages=1
+    fi
 }
 
-
-function display_bar() {
-right_side="$n/$pages"
-if [[ ${#files[@]} -gt 1 ]]; then
-    right_side="$right_side [$cur_doc/${#files[@]}]"
-fi
-offset=$[$width - ${#right_side}]
-inset=5
-message_length=$[$width - ${#right_side} - $inset - 2]
-tput cup $height 0
-tput el # erase any old stuff from previous commands
-tput cup $height 5
-printf "${message:0:$message_length}"
-tput cup $height $offset
-printf "$right_side"
-tput cup $height 0 # put the cursor in left corner
+function validate_page_number() {
+    if [[ $page_number == "" ]]; then
+        page_number=1
+    fi
+    if [[ "${page_number}" -le 0 ]]; then 
+        page_number=1
+    fi
+    if [[ "${page_number}" -ge "$total_pages" ]]; then 
+        page_number=$total_pages
+    fi
 }
 
-function refresh_file() {
-rm "${tmp_dir}/tmp"*
-}
+###########################################################################
+# Printing 
+###########################################################################
 
-function print_file() {
-display_bar
-read -n 1 -p "Print $1 copies of document? " res
-if [[ $res == 'y' ]]; then
-    message="printing..."
+function print_document() {
+    # print_document copies pagerange
+    message=""
     display_bar
-    $print_command ${print_options[@]} -n $1 "$input_file"
-    message="print job sent"
-fi
-}
-
-function switch_doc() {
-    nd=$1
-    np=$2
-    # validate nd
-    if [[ $nd -gt ${#files[@]} ]]; then 
-        nd=$[0 + ($nd - ${#files[@]})]
-    fi
-    if [[ $nd -le 0 ]]; then
-        nd=$[${#files[@]} + $nd]
-    fi
-    # store current document page number and split
-    doc_num[$cur_doc]=$n
-    doc_split[$cur_doc]=$split
-    # fetch new document number and split
-    if [[ $np != "" ]]; then
-        n=$np
+    if [[ -z "$2" ]]; then
+        range="1-$total_pages"
     else
-        n=${doc_num[$1]}
+        range="$2"
     fi
-    split=${doc_split[$1]}
-    display_doc $nd
+    read -n 1 -p "Print $1 copies of pages $range? " reply
+    if [[ $reply == 'y' ]]; then
+        message="printing..."
+        display_bar
+        $print_command $print_options -n $1 -P $range "$document"
+        message="print job sent"
+    fi
+}
+
+###########################################################################
+# Set keys for navigation etc. 
+###########################################################################
+
+function keys() {
+        back="k"
+        forward="j"
+        n_goto="G"
+        goto_m="g"
+        yank="y"
+        if [[ -n $enable_marks ]]; then
+            mark="m"
+            reference="'"
+        fi
+        # search="/" # search not implemented
+        next_result="n" # search not implemented
+        previous_result="N" # search not implemented
+        refresh="r"
+        reload="R"
+        print="p"
+        crop="c"
+        notes="a" 
+        help="h"
+        quit="q"
+}
+
+###########################################################################
+# Edit this is if you prefer different print settings 
+###########################################################################
+
+
+function print_settings() {
+   print_command="lp"
+   print_options="-o sides=two-sided-long-edge"
+}
+
+###########################################################################
+# Do all the little things we need to do when first started
+###########################################################################
+
+function setup() {
+    page_number=1
+    cropped=""
+    tmp_dir=$(mktemp -d)
+    keys
+    print_settings
+}
+
+###########################################################################
+# "Reload" the document by deleting all the cached pages
+###########################################################################
+
+function reload() {
+    rm -rf "${tmp_dir}"
+    tmp_dir=$(mktemp -d)
+    clear_message
 }
 
 
-
-function check_dependencies() {
-
-case $ft in
-    pdf)
-        dep_list="pdftotext pdfgrep pdfinfo convert selecta"
-        ;;
-    djvu)
-        dep_list="djvups djvutxt djvudump convert selecta"
-        ;;
-    tif)
-        dep_list="convert"
-        ;;
-esac
-
-os=$(uname)
-if [[ $os != "Darwin" ]]; then
-    dep_list="$dep_list bc w3mimgdisplay"
-fi
-
-for app in $dep_list
-do
-    command -v $app >/dev/null 2>&1 || {
-        echo >&2 "termpdf requires $app but it's not installed."
-        sleep 1; 
-    } 
-done
-}
-
-function print_help() {
-clear
-tput cup 0 0
-cat <<EOH
-[count]${keys['previous-page']}/${keys['next-page']}:  page back/forward
-enter/space: page forward
-[count]${keys['previous-doc']}/${keys['next-doc']}:  previous/next document
-[count]${keys['goto-page']}:    go to page number
-${keys['search']}<expr>:     search for <expr> 
-[count]${keys['next-match']}:    go to next match for <expr>
-[count]${keys['previous-match']}:    go to previous match for <expr>
-${keys['refresh-view']}:           refresh display
-${keys['reload-document']}:           reload document
-${keys['crop-margins']}:           zoom (crop margins) 
-${keys['text']}:           toggle text/image display
-${keys['horizontal-split']}:           split pages horizontally
-${keys['vertical-split']}:           split pages vertically
-${keys['print']}:           print document
-${keys['pager-toggle']}:           toggle pager in text mode" 
-${keys['wrap-toggle']}:           toggle word-wrapping in text mode
-${keys['yank-text']}:           yank pages between current and n as text
-${keys['mark-page']}<char>:     store page number to <char> mark"           
-${keys['to-mark']}<char>:     go to page stored in <char> mark"           
-[count]${keys['yank-pdf']}:    yank pages to PDF 
-${keys['open-file']}:           open file
-${keys['help']}:           help
-${keys['quit']}:           quit
-EOH
-read -p "Press any key to return" -n 1 -s dummy
-if [ $dummy == 'q' ]; then exit; fi
-clear
-}
-
-function cli_help() {
-echo "Usage: termpdf.sh [options] file.pdf"
-echo
-echo "   options:"
-echo "      -h|--help:   show this help"
-echo "      -t|--text:   display text instead of images"
-echo "      -n <int>:    display page number <n>" 
-exit
-}
+###########################################################################
+# Delete the cached pages before exiting
+###########################################################################
 
 function clean_and_exit() {
-rm -rf "$tmp_dir"
-clear
-exit
+    rm -rf "$tmp_dir"
+    clear
+    exit
 }
 
-function get_window_info() {
-get_pane_size
-if [[ "$os" != "Darwin" ]]; then
-    get_xterm_info
-#    get_xterm_font_factors
-    get_xterm_position
-fi
-}
 
-function blank_if_not_integer() {
-if [ $1 -eq $1 ] 2> /dev/null;
-then
-    printf $1
-else
-    printf ""
-fi
-}
-
-function list_marks() {
-message="marks:"
-for reg in ${!mark[@]}; do
-    message="$message $reg:${mark[$reg]}"
-done
-}
-
-function debug() {
-printf "$clearstring" | w3mimgdisplay
-}
+###########################################################################
+# Many commands have a vim-style optional "count" (e.g, 5j moves forward 
+# 5 pages). Often, if no count is given, we default to 1 
+###########################################################################
 
 function check_count() {
     [[ $count == "" ]] && count=1
 }
 
-function read_command() {
-read -n 1 command # await command
-case "$command" in
-    $'\e')
-        ;;
-    [0-9])
-        count="${count}${command}"
-        read_command
-        ;;
-    "${keys['previous-page']}")
-        check_count
-        if [[ $split == "false" ]]; then
-            n=$[$n - $count]
-        elif [[ $n =~ B$ ]]; then
-            n=$[${n%B} - (count / 2)]B
-            if [[ $[count % 2] -eq 1 ]]; then
-                n=${n%B}A
-            fi
-        else
-            n=$[${n%A} - ( $count / 2)]A
-            if [[ $[count % 2] -eq 1 ]]; then
-                n="$[${n%A} - 1]B"
-            fi
-        fi
-        message=""
-        ;; # go back a page
-    "${keys['next-page']}"|'')
-        check_count
-        if [[ $split == "false" ]]; then
-            n=$[$n + $count] 
-        elif [[ $n =~ B$ ]]; then
-            n=$[${n%B} + (count / 2)]B
-            if [[ $[count % 2] -eq 1 ]]; then
-                n=$[${n%B} + 1]A
-            fi
-        else
-            n=$[${n%A} + (count / 2)]A
-            if [[ $[count % 2] -eq 1 ]]; then
-                n="${n%A}B"
-            fi
-        fi
-        message=""
-        ;;
-    "${keys['next-doc']}")
-        check_count
-        new_doc=$[$cur_doc + ( $count % ${#files[@]} )]
-        switch_doc $new_doc
-        ;;
-    "${keys['previous-doc']}")
-        check_count
-        new_doc=$[ $cur_doc - ( $count % ${#files[@]} )]
-        switch_doc $new_doc 
-        ;;
-    "${keys['refresh-view']}")
-        get_window_info # clean up and resize to fit pane
-        message=""
-        clear
-        ;;
-    "${keys['reload-document']}")
-        refresh_file # reload file 
-        message=""
-        clear
-        ;;
-    "${keys['text']}")
-        if [ $display == "text" ]; then
-            display="image"
-        else
-            display="text"
-        fi
-        clear
-        message=""
-        ;;
-    "${keys['crop-margins']}")
-        if [ $trimmed == "false" ]; then
-            trimmed="true"
-        else
-            trimmed="false"
-        fi
-        message=""
-        ;;
-    "${keys['pager-toggle']}")
-        if [[ "$text_pager" == "${text_pagers[1]}" ]]; then
-            text_pager=${text_pagers[0]}
-        else
-            text_pager=${text_pagers[1]}
-        fi
-        message="pager: $text_pager"
-        ;;
-    "${keys['horizontal-split']}")
-        if [[ $split == "horiz" ]]; then
-            split="false"
-            n=${n%[AB]}
-        else
-            split="horiz"
-            n="${n%[AB]}A"
-        fi
-        message=""
-        ;;
-    "${keys['vertical-split']}")
-        if [[ $split == "vert" ]]; then
-            split="false"
-            n=${n%[AB]}
-        else
-            split="vert"
-            n="${n%[AB]}A"
-        fi
-        message=""
-        ;;
-    "${keys['print']}")
-        check_count
-        print_file $count
-        ;;
-    "${keys['wrap-toggle']}")
-        if [ $wrap == "true" ]; then
-            wrap="false"
-        else
-            wrap="true"
-        fi
-        message=""
-        ;;
-    "${keys['search']}") 
-        find_text
-        if [[ $index != -1 ]]; then
-            n=${results[$index]%%:*}
-        else
-            message="no matches"
-        fi;;
-    "${keys['next-match']}")
-        check_count
-        if [[ $index -ne -1 ]]; then 
-            index=$[($index + $count) % ${#results[@]}] 
-            n=${results[$index]%%:*} # go to next match
-            message="$[$index + 1]/${#results[@]}: ${results[$index]#*:}"
-        else
-            message="No matches"
-        fi
-        ;;
-    "${keys['previous-match']}")
-        check_count
-        if [[ $index -ne -1 ]]; then
-            index=$[($index - $count) % ${#results[@]}]
-            n=${results[$index]%%:*} # go to previous match
-            message="$[$index + 1]/${#results[@]}: ${results[$index]#*:}"
-        else
-            message="No matches"
-        fi;;
-    "${keys['mark-page']}")
-        read -n 1 register
-        case $register in
-            $'\e'|"")
-                ;;
-            *)    
-                mark[$register]="$n:$cur_doc"
-                message="$n:$cur_doc stored in mark \'$register\'"
-                ;;
-        esac
-        ;;
 
-    "${keys['goto-last']}")   
-        if [[ $count == "" ]]; then
-            n=$pages
-        else
-            n=$count
-        fi
-        ;;
-    "${keys['goto-page']}")   
-        if [[ $count == "" ]]; then
-            read -n 1 command
-            case $command in
-                $'\e')
-                    ;;
-                "${keys['goto-page']}")
-                    n=1
-                    message=""
-                    ;;
-                "${keys['to-mark']}")
-                    read -n 1 register
-                    case $register in
-                        $'\e')
-                            ;;
-                        *)
-                            if [[ ${mark[$register]} != "" ]]; then
-                                message=""
-                                switch_doc ${mark[$register]##*:} ${mark[$register]%%:*}
-                            else
-                                message="no mark \'$register\'"
-                            fi
-                            ;;
-                    esac
-                    ;;
-            esac
-        else
-           n=$count
-        fi
-        ;;
-    "${keys['to-mark']}")
-        read -n 1 register
-        case $register in
-            $'\e')
+###########################################################################
+# Clears the message that might have appeared in the status bar
+###########################################################################
+
+clear_message() {
+    message=""
+}
+
+###########################################################################
+# A simple function for listing all the saved marks in the status bar 
+###########################################################################
+
+function list_marks() {
+    if [[ -n $enable_marks ]]; then
+        message="marks:"
+        for reg in ${!marks[@]}; do
+            message="$message $reg:${marks[$reg]}"
+        done
+    else
+        message="marks not enabled"
+    fi
+}
+
+###########################################################################
+# Use k2pdfopt <https://github.com/JohannesBuchner/k2pdfopt> to crop 
+# excess whitespace from pdfs.
+#
+#     crop_margins root page
+#
+# TODO: add support for cropping TIFs using convert
+###########################################################################
+
+function crop_margins() {
+     if [[ ! -f "${tmp_dir}/${1}${2}_k2opt.pdf" ]]; then
+         k2pdfopt -ocr- -ui- -x -mode tm "${tmp_dir}/${1}${2}.pdf" > /dev/null
+     fi
+}
+
+###########################################################################
+# Functions for extracting and caching a single page from a multipage
+# pdf or djvu file.
+#
+#     extract_pdf_page path root extension page 
+###########################################################################
+
+function extract_pdf_page() {
+    pdfseparate -f "$4" -l "$4" "${1}/${2}.${3}" "${tmp_dir}/${2}%d.pdf"
+}
+
+function extract_djvu_page() {
+    djvups -page=$4 "${1}/${2}.${3}" - \
+        | ps2pdf - "${tmp_dir}/${2}${4}.pdf"
+}
+
+function extract_tiff_page() {
+    # use tiffcrop
+    message="tiff files not yet supported"
+}
+
+
+
+###########################################################################
+# Wrapper function for extracting page depending on file type 
+#
+#    extract_page path rootname extension page-number
+###########################################################################
+
+function extract_page() {
+    if [[ ! -f "${tmp_dir}/${2}${4}.pdf" ]]; then
+        case $filetype in
+            pdf)
+                extract_pdf_page "$1" "$2" "$3" "$4"
+                ;;
+            djvu)
+                extract_djvu_page "$1" "$2" "$3" "$4"
+                ;;
+            tif*)
+                extract_tiff_page "$1" "$2" "$3" "$4"
                 ;;
             *)
-                if [[ ${mark[$register]} ]]; then
-                    n=${mark[$register]%%:*}
-                    cur_doc=${mark[$register]##*:}
-                    message=""
-                    display_doc $cur_doc
-                else
-                    message="no mark \'$register\'"
-                fi
+                echo "filetype not supported"
+                exit
                 ;;
         esac
-        ;;
-    "${keys['yank-pdf']}")
-        if [[ $count != "" ]]; then
-            extract_pdf $n $[$n + $count] 
-        else
-            read -n 1 command
-            case $command in
-                $'\e')
-                    ;;
-                "${keys['yank-pdf']}")
-                    extract_pdf $n $n
-                    ;;
-                "${keys['to-mark']}")
-                    read -n 1 register
-                    case $register in
-                        $'\e')
-                            ;;
-                        *)
-                            if [[ ${mark[$register]} ]]; then
-                                if [[ ${mark[$register]##*:} -eq $cur_doc ]]; then  
-                                    extract_pdf $n ${mark[$register]%%:*}
-                                else
-                                    message="mark not in current document"
-                                fi
-                            else
-                                message="no mark \'$register\'"
-                            fi
-                            ;;
-                    esac
-                    ;;
-            esac
-        fi
-        ;;
-     "${keys['yank-text']}")
-        if [[ $count != "" ]]; then
-            yank_text $n $[$n + $count] 
-        else
-            read -n 1 command
-            case $command in
-                $'\e')
-                    ;;
-                "${keys['yank-text']}")
-                    yank_text $n $n
-                    ;;
-                "${keys['to-mark']}")
-                    read -n 1 register
-                    case $register in
-                        $'\e')
-                            ;;
-                        *)
-                            if [[ ${mark[$register]} ]]; then
-                                if [[ ${mark[$register]##*:} -eq $cur_doc ]]; then  
-                                    yank_text $n ${mark[$register]%%:*}
-                                else
-                                    message="mark not in current document"
-                                fi
-                            else
-                                message="no mark \'$register\'"
-                            fi
-                            ;;
-                    esac
-                    ;;
-                [0-9])   
-                    ;;
-            esac
-        fi
-        ;;
-    "${keys['open-file']}")
-        open_file
-        ;;
-    "${keys['help']}")
-        print_help
-        message=""
-        ;;
-    "${keys['debug']}")
-        debug
-        ;;
-    "${keys['quit']}")
-        clean_and_exit
-        ;;
-esac
+    fi
+    if [[ "$cropped" != "" ]]; then
+        crop_margins "$2" "$4"
+    fi
 }
 
-function display_doc() {
 
-cur_doc=$1
-input_file="${files[$cur_doc]}"
-ft=${input_file##*.}
+###########################################################################
+# Function for exporting some pages of the document to a new PDF file
+#
+#    export_pdf page page
+###########################################################################
 
-if [[ $split == "" ]]; then split="false"; fi
-
-check_dependencies
-
-# How many pages does the file have?
-get_pages
-
-tmp_file_root="${tmp_dir}/tmp-${cur_doc}-"
-
-# Postscript? Convert to PDF and relaunch
-if [[ $ft == 'ps' ]]; then
-    ps2pdf "$input_file" "${tmp_dir}/tmp.pdf"
-    $0 "${tmp_dir}/tmp.pdf"
-    clean_and_exit 
-fi
-
-# clear the pane since we don't always fill it
-#clear
-
-
-# display the document 
-
-while true
-do
-    # make sure the page we want exists
-    page_limits
-    # check the size of the pane, window, etc
-    get_window_info
-    # Convert the page to be displayed
-    convert_page $n
-    # Start converting surrounding pages in the background 
-    convert_background 
-    tput cup 0 0 
-    
-    if [[ $trimmed == 'true' ]]; then
-        tmp_file="${tmp_file_root}-trimmed-$n.png"
+function export_pdf() {
+    n="1"
+    output="${fileroot}_selection.pdf"
+    until [[ ! -f "$output" ]]; do
+        output="${fileroot}_selection_$n.pdf"
+        n=$[$n + 1]
+    done
+    if [[ $1 -le $2 ]]; then
+        first_page="$1"
+        last_page="$2"
     else
-        tmp_file="${tmp_file_root}-$n.png"
+        first_page="$2"
+        last_page="$1"
     fi
-    # display
-    if [ $display == 'image' ]; then
-        print_image "$tmp_file" 1 "$(base64 < "$tmp_file")"
-    else
-        display_text $n
+    if [[ "$filetype" == "pdf" ]]; then
+        pdftocairo -pdf -f "$first_page" -l "$last_page" "$document" "$output" 
+        message="pages $first_page to $last_page saved to $output"
+    elif [[ "$filetype" == "djvu" ]]; then
+        djvups -page=${first_page}-${last_page} "$document" - \
+            | ps2pdf - "$output"
+        message="pages $first_page to $last_page saved to $output"
+    else 
+        # TODO: add support for TIFF
+        message="export to pdf not yet supported for this filetype"
     fi
-
-    display_bar
-    count=""
-    read_command
-
-done
 }
+
+
+###########################################################################
+# Open a filename_notes.md file for annotation
+# 
+# If you are running inside of tmux, then this will open your editor
+# in a split pane. Otherwise, it will simply open the file in your $EDITOR.
 #
+# The file is prepopulated with a pandoc-style yaml title block. Change
+# this if you would rather use org or whatever.
 ###########################################################################
 
+function notes() {
+    notes="${document%%.*}_notes.md"
+    if [[ ! -f "$notes" ]]; then
+        printf -- "---\ntitle: Notes on %s\nauthor: %s\ndate: %s\n...\n\n" "${document##*/}" "$(id -F)" "$(date)" >> "$notes" 
+    fi
+    if [[ ! $TMUX ]]; then
+        $EDITOR "$notes" 
+    else
+        tmux split-window -h -d $EDITOR "$notes"
+        refresh
+    fi
+}
+
+
+
 ###########################################################################
-# Main program
-#
-# Set some defaults
-n=1 # start on page 1
-text_pager=${text_pagers[0]}
-results=( )
-index=-1 
-text="$" # null search text for egrep
-trimmed="false" # set to true to default to trim margins
-split=false # don't split pages by default
-files=( )
-declare -A mark
+# Draw the status bar 
+###########################################################################
+
+function display_bar() {
+    right_side="$page_number/$total_pages"
+    offset=$[$width - ${#right_side}]
+    inset=15
+    message_length=$[$width - ${#right_side} - $inset - 2]
+    tput cup $height 0
+    tput el # erase any old stuff from previous commands
+    tput cup $height $inset
+    printf "${message:0:$message_length}"
+    tput cup $height $offset
+    printf "$right_side"
+    tput cup $height 0 # put the cursor in left corner
+}
 
 
-# Look for command line flags
-while [ $# -gt 0 ]; do
-    case "$1" in
-        -h|--help)
-            cli_help
-            exit
+###########################################################################
+# Display help 
+###########################################################################
+
+function help() {
+    clear
+    tput cup 0 0
+cat <<EOH
+Keyboard commands
+
+    enter/space: forward one page
+    [n]$back/$forward:      forward or back [n] pages
+    [n]$n_goto:        go to page [n]
+    $n_goto:           go to last page
+    $goto_m$goto_m:          go to first page
+    [n]$print:        print [n copies of] document
+    [n]$yank:        yank [n] pages forward and save as pdf
+    $yank$yank:          yank current page and save as pdf
+    $refresh:           refresh display
+    $reload:           reload document
+    $crop:           crop margins 
+    $notes:           annotate in split pane
+    $mark[r]:        store current page in register [r]
+    $reference[r]:        go to page stored in register [r]
+    ${goto_m}${reference}[r]:       go to to page in register [r]  
+    ${yank}${reference}[r]:       yank from current page to mark and save as pdf
+    $quit:           quit
+    $help:           view this help
+
+EOH
+
+    read -p "Press any key to return to document" -n 1 -s dummy
+    clear
+}
+
+###########################################################################
+# Each command is its own function 
+###########################################################################
+
+function goto() {
+    # goto n
+    page_number=$1
+    #clear_message
+}
+
+function back() {
+    # back n
+    goto $[$page_number - $1]
+    clear_message
+}
+
+function forward() {
+    # forward n
+    goto $[$page_number + $1]
+    clear_message
+}
+
+function yank() {
+   # yank page page
+   export_pdf $1 $2
+}
+
+function mark() {
+    # mark register <page>
+    if [[ -n $enable_marks ]]; then
+        if [[ "$2" == "" ]]; then
+            marks[$1]=$page_number
+        else
+            marks[$1]="$2"
+        fi
+        message="${marks[$1]} stored in mark \'$1\'"
+    else
+        message="marks not enabled"
+    fi
+}
+
+function goto_mark() {
+    # goto_mark register
+    if [[ -n $enable_marks ]]; then
+        if [[ ${marks[$register]} != "" ]]; then
+            goto ${marks[$register]}
+        else
+            message="no mark \'$register\'"
+        fi
+    else
+        message="marks not enabled"
+    fi
+}
+
+function quit() {
+    clean_and_exit
+}
+
+function refresh() {
+    # redraw the pane (important because tmux has a habit of clobbering
+    # the displayed image
+    clear
+}
+
+# open the document in your default pdf viewer
+function gui() {
+    open "$1"
+}
+
+function crop() {
+    if [[ "$cropped" == "" ]]; then
+        cropped="_k2opt"
+    else
+        cropped=""
+    fi
+}
+
+function print() {
+    # print <copies> <range>
+    if [[ $1 == "" ]]; then
+        print_document 1
+    else
+        print_document $1 $2
+    fi
+}
+
+###########################################################################
+# Command Mode
+###########################################################################
+
+function command_mode() {
+    read -ea command
+    case ${command[0]} in
+        q|qu|qui|quit)
+            quit
             ;;
-        -t|--text)
-            display="text"
-           ;;
-        -n)
-            shift
-            if [[ "$1" != [0-9]* ]]; then
-                echo "Must specify a page number with -n"
-                exit
+        f|forward)
+            forward ${command[1]}
+            ;;
+        b|back)
+            back ${command[1]}
+            ;;
+        g|goto)
+            goto ${command[1]}
+            ;;
+        first)
+            goto 1
+            ;;
+        last)
+            goto $total_pages
+            ;;
+        [0-9]*)
+            goto ${command[0]}
+            ;;
+        mark)
+            # mark register <page>
+            mark ${command[1]} ${command[2]}
+            ;;
+        yank)
+            # yank page page
+            yank ${command[1]} ${command[2]}
+            ;;
+        search)
+            # search string
+            # search ${command[1]}
+            # search not implemented
+            ;;
+        refresh)
+            refresh
+            ;;
+        reload)
+            reload
+            ;;
+        e|edit|o|open)
+            # open another document instead of this one
+            if [[ -f "${command[1]}" ]]; then
+                display_document ${command[1]}
             else
-                n="$1"
+                message="${command[1]} does not exist"
             fi
             ;;
-        -*)
-            echo "Unknown option: $1"
-            cli_help
-            exit
+        gui)
+            # open document in your default pdf viewer (e.g., Preview.app)
+            gui "$document"
             ;;
-        *)
-            if [ -r "$1" ] ; then
-                files=( "${files[@]}" "$1" ) 
-            else
-                echo "$1: No such file" 
-                exit
-            fi
+        print)
+            # print <copies> <pages>
+            print ${command[1]} ${command[2]}
+            ;;
+        marks)
+            list_marks
+            ;;
+        notes)
+            notes
+            ;;
+        crop)
+            crop
+            ;;
+        help)
+            help
             ;;
     esac
-    shift
-done
+}
 
 
-# Make a tmp_dir
-tmp_dir="$(mktemp -q -d -t "termpdftemp.XXXXXX" 2>/dev/null || mktemp -q -d)"
-# Check to see that a file was specified on the cli
-if [[ ${#files[@]} == 0 ]]; then 
+###########################################################################
+# Wait for next command
+###########################################################################
+
+function read_command() {
+    read -n 1 command
+    case "$command" in
+        $'\e')
+            ;;
+        [0-9])
+            count="${count}${command}"
+            read_command
+            ;;
+        ":")
+            command_mode
+            ;;
+        $back)
+            check_count
+            back $count
+            ;;
+        $forward | '')
+            check_count
+            forward $count
+            ;;
+        "$n_goto")
+            if [[ $count == "" ]]; then
+                goto $total_pages
+            else
+                goto $count
+            fi
+            ;;
+        "$goto_m")
+            read -n 1 command
+            case $command in
+                $'\e')
+                    ;;
+                "$goto_m")
+                    goto 1
+                    ;;
+                "$reference")
+                    read -n 1 register
+                    case $register in
+                        $'\e')
+                            ;;
+                        *)
+                            goto_mark $register
+                            ;;
+                    esac
+            esac
+            ;;
+        "$reference")
+            read -n 1 register
+            case $register in
+                $'\e')
+                    ;;
+                *)
+                    goto_mark $register
+                    ;;
+            esac
+            ;;
+        "$yank")
+            if [[ $count == "" ]]; then
+                read -n 1 command
+                case $command in
+                    $'\e')
+                        ;;
+                    "$yank")
+                        yank $page_number $page_number
+                        ;;
+                    "$reference")
+                        read -n 1 register
+                        case $register in
+                            $'\e')
+                                ;;
+                            *)
+                                if [[ ${marks[$register]} != "" ]]; then
+                                    yank $page_number ${marks[$register]}
+                                else
+                                    message="no mark \'$register\'"
+                                fi
+                                ;;
+                        esac
+                        ;;
+                esac
+            else
+                yank $page_number $[$page_number + $count]
+            fi
+            ;;
+        "$mark")
+            read -n 1 register
+            case $register in
+                $'\e'|"")
+                    ;;
+                *)
+                    mark $register $page_number
+                    ;;
+            esac
+            ;;
+        "$crop")
+            crop
+            ;;
+        "$notes")
+            notes
+            ;;
+        "$quit")
+            quit
+            ;;
+        "$refresh")
+            refresh
+            ;;
+        "$reload")
+            reload
+            ;;
+        "$print")
+            check_count
+            print $count
+            ;;
+        "$help")
+            help
+            ;;
+    esac
+}
+
+
+###########################################################################
+# Display Document
+###########################################################################
+
+function display_document() {
+    document=$1
+
+    filepath="${document%/*}"
+    filename="${document##*/}"
+    if [[ "$filepath" == "$filename" ]]; then
+        filepath="."
+    fi
+    filetype="${filename##*.}"
+    fileroot="${filename%.*}"
+
+    get_total_number_of_pages "$document"
+    clear
+    while true
+    do
+        validate_page_number 
+        get_pane_size 
+        extract_page "$filepath" "$fileroot" "$filetype" "$page_number" 
+        image="${tmp_dir}/${fileroot}${page_number}${cropped}.pdf"
+        tput cup 0 0 
+        print_image "$image" 1 "$(base64 < "$image")" $width $height
+        display_bar
+        count=""
+        read_command
+    done
+}
+
+
+###########################################################################
+# Select Document 
+###########################################################################
+
+function select_document() {
+    message=""
+    read -e -p "Open: " new_file
+    if [[ -r $new_file ]]; then
+        document=$new_file 
+    else
+        message="No such file"
+        select_document
+    fi
+}
+
+function display_banner() {
+    message=""
+    banner[1]=" _                                _  __ "
+    banner[2]="| |_ ___ _ __ _ __ ___  _ __   __| |/ _|"
+    banner[3]="| __/ _ \ '__| '_ \` _ \| '_ \ / _\` | |_ "
+    banner[4]="| ||  __/ |  | | | | | | |_) | (_| |  _|"
+    banner[5]=" \__\___|_|  |_| |_| |_| .__/ \__,_|_|  "
+    banner[6]="                       |_|              "
+    clear
+    start_row=$[($height/2) - 3]
+    start_col=$[($width/2) - (${#banner[1]}/2)]
+    if [[ ${#banner[1]} -gt $width ]]; then
+        start_col=0
+    fi
+    tput cup $start_row 0
+    for line in "${banner[@]}"; do
+        printf "%*s%s\n" $start_col " " "$line"
+    done
+    display_bar
+}
+
+###########################################################################
+# Main Program
+###########################################################################
+
+setup
+
+if [[ -z "$1" || ! -f "$1" ]]; then
     get_pane_size
     display_banner
-    open_file
-    echo $message 
+    select_document
 else
-    display_doc 0
+    document="$1"
 fi
+
+display_document "$document"
 
 
