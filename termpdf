@@ -86,6 +86,27 @@ function get_pane_size() {
     height=$(expr $height - 1 )
 }
 
+
+###########################################################################
+# Function for adjusting background color of current pane 
+# 
+# The tmux commands are commented out because iTerm2 doesn't seem
+# to respect tmux background colors when drawing images, so this
+# doesn't help with https://github.com/dsanson/termpdf/issues/10
+###########################################################################
+
+function set_background() {
+    if [[ $TMUX ]]; then
+    : #   tmux select-pane -P 'bg=white'
+    fi
+}
+
+function revert_background() {
+    if [[ $TMUX ]]; then
+    : #   tmux select-pane -P 'default'
+    fi
+}
+
 ###########################################################################
 # Functions for dealing with pages
 ###########################################################################
@@ -193,6 +214,7 @@ function setup() {
     tmp_dir=$(mktemp -d)
     keys
     print_settings
+    set_background
 }
 
 ###########################################################################
@@ -212,6 +234,7 @@ function reload() {
 
 function clean_and_exit() {
     rm -rf "$tmp_dir"
+    revert_background
     clear
     exit
 }
@@ -382,7 +405,11 @@ function notes() {
 ###########################################################################
 
 function display_bar() {
-    right_side="$page_number/$total_pages"
+    if [[ -n $total_pages ]]; then
+       right_side="$page_number/$total_pages"
+    else
+       right_side=""
+    fi
     offset=$[$width - ${#right_side}]
     inset=15
     message_length=$[$width - ${#right_side} - $inset - 2]
@@ -757,12 +784,15 @@ function display_document() {
 ###########################################################################
 
 function select_document() {
-    message=""
+     display_bar
     read -e -p "Open: " new_file
     if [[ -r $new_file ]]; then
         document=$new_file 
+    elif [[ -z $new_file ]]; then
+        clean_and_exit
     else
         message="No such file"
+        clear
         select_document
     fi
 }
