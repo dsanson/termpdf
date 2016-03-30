@@ -101,6 +101,7 @@ While viewing a file, the default key commands are:
     yy:          yank current page and save as pdf
     r:           refresh display
     R:           reload document
+    M:           remake document
     c:           crop margins
     a:           annotate in split pane
     m[r]:        store current page in register [r]
@@ -130,6 +131,10 @@ customizable autocompletion when called within scripts. But it is there.
 
 Various events, like resizing panes, can cause tmux to clobber the
 displayed page. Use the 'refresh display' command (`r`) to fix this.
+
+The make command right now only works if you have a Makefile in the same
+directory as the PDF, and you launched termpdf from that directory. It would
+be nice to support a configurable make command.
 
 There is no robust error checking. This is just a bash script.
 
