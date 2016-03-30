@@ -187,6 +187,7 @@ function keys() {
         previous_result="N" # search not implemented
         refresh="r"
         reload="R"
+        make="M"
         print="p"
         crop="c"
         notes="a" 
@@ -225,6 +226,7 @@ function reload() {
     rm -rf "${tmp_dir}"
     tmp_dir=$(mktemp -d)
     clear_message
+    get_total_number_of_pages "$document"
 }
 
 
@@ -443,6 +445,7 @@ Keyboard commands
     $yank$yank:          yank current page and save as pdf
     $refresh:           refresh display
     $reload:           reload document
+    $make:           remake document
     $crop:           crop margins 
     $notes:           annotate in split pane
     $mark[r]:        store current page in register [r]
@@ -520,6 +523,17 @@ function refresh() {
     # redraw the pane (important because tmux has a habit of clobbering
     # the displayed image
     clear
+}
+
+function remake() {
+    if [[ -f "Makefile" ]]; then 
+        clear
+        make "$document"
+        reload
+        clear
+    else
+        message="No Makefile present"
+    fi
 }
 
 # open the document in your default pdf viewer
@@ -742,6 +756,9 @@ function read_command() {
             ;;
         "$help")
             help
+            ;;
+        "$make")
+            remake
             ;;
     esac
 }
