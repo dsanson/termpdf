@@ -127,6 +127,18 @@ There is also rudimentary undocumented support for `:` style commands, e.g.,
 This is mostly useless, because bash's `read` command doesn't support
 customizable autocompletion when called within scripts. But it is there. 
 
+# `termdoc`
+
+`termdoc` is a wrapper script for viewing Microsoft Office documents (word,
+excel, powerpoint) using `termpdf`.
+
+It uses the free doc2pdf.net conversion service, so it will
+only work if you are online. Also note that doc2pdf.net is not recommended for
+confidential documents, for obvious reasons.
+
+It would be trivial to rewrite this to use `unoconv`, but I am not interested
+in installing an old version of Libreoffice just so I can use `unoconv`.
+
 # Known issues
 
 Various events, like resizing panes, can cause tmux to clobber the
