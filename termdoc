@@ -6,7 +6,7 @@ help_and_exit() {
     echo "termdoc wraps doc2pdf.net with termpdf, giving you a way"
     echo "to view MS Word, Excel, and Powerpoint documents in iTerm2"
     echo
-    echo "WARNING: do not use for confidential documents!
+    echo "WARNING: do not use for confidential documents!"
     echo
     echo "Usage:"
     echo "    termdoc file.docx"
@@ -17,7 +17,7 @@ doc2pdf() {
    curl -# -F inputDocument=@"$1" http://www.doc2pdf.net/convert/document.pdf > "${tmp_dir}/${1%.*}.pdf"
 }
 
-[[ -z $1 ]] && help_and_exit
+[[ -z "$1" ]] && help_and_exit
 
 tmp_dir=$(mktemp -d)
 doc2pdf "$1"
