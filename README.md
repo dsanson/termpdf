@@ -1,7 +1,7 @@
 termpdf
 =======
 
-`termpdf` is a barebones inline graphical PDF (and DJVU) viewer for
+`termpdf` is a barebones inline graphical PDF (and DJVU and TIFF) viewer for
 iTerm 2.9 or later on OS X. It is a ridiculous hack---a bash script wrapped around
 some special terminal escape codes. But it works well enough for me to be
 useful.
@@ -52,6 +52,15 @@ document has. These commands are provided by DJVULibre and Ghostscript:
 
     $ brew install ghostscript djvulibre
 
+libtiff
+-------
+
+The script uses `tiffutil`, and `tiff2pdf` to extract pages from
+TIFF files and convert them to PDF, and `tiffinfo` to figure out how many
+pages a TIFF document has. These commands are provided by libtiff:
+
+    $ brew install libtiff
+
 K2pdfopt
 --------
 
@@ -59,7 +68,7 @@ The simplest tool I could find for automatically cropping margins on PDF
 documents was [`k2pdfopt`](http://willus.com/k2pdfopt/). If you don't care
 about cropping margins, you don't need this. If you know of a way of doing
 this that is simpler, let me know! (In a previous version of the script, I
-used ImageMagick's `convert`, but that was in part because I was converting
+used ImageMagick's `convert`, but that was because I was converting
 each page to a PNG file.)
 
 Bash 4.x

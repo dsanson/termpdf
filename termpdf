@@ -123,7 +123,7 @@ function get_total_number_of_pages() {
             ;;
         tif|tiff)
             total_pages=$(tiffinfo "$1" 2>/dev/null \
-                | sed -n 's/ *Page Number:.*-//p' | sed -n '1p')
+                | sed -n 's/ *PageName: Page //p' | tail -n 1)
             ;;
         *)
             total_pages=1 
@@ -307,8 +307,8 @@ function extract_djvu_page() {
 }
 
 function extract_tiff_page() {
-    # use tiffcrop
-    message="tiff files not yet supported"
+    tiffutil -extract "$[$4 - 1]" "${1}/${2}.${3}" -o "${tmp_dir}/out.tiff" 2>/dev/null 
+    tiff2pdf -o "${tmp_dir}/${2}${4}.pdf" "${tmp_dir}/out.tiff" 2>/dev/null
 }
 
 
@@ -391,11 +391,14 @@ function notes() {
     notes="${document%%.*}_notes.md"
     if [[ ! -f "$notes" ]]; then
         printf -- "---\ntitle: Notes on %s\nauthor: %s\ndate: %s\n...\n\n" "${document##*/}" "$(id -F)" "$(date)" >> "$notes" 
+        for (( i=1; i<=$total_pages; i++ )); do
+            printf "# Page %s\n\n\n\n" $i >> "$notes"
+        done
     fi
     if [[ ! $TMUX ]]; then
-        $EDITOR "$notes" 
+        $EDITOR "$notes" +/"Page $page_number"
     else
-        tmux split-window -h -d $EDITOR "$notes"
+        tmux split-window -h -d $EDITOR "$notes" +/"Page $page_number$" -c "foldopen" -c "normal jj" 
         refresh
     fi
 }
