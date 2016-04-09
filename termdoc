@@ -17,15 +17,19 @@ doc2pdf() {
    curl -# -F inputDocument=@"$1" http://www.doc2pdf.net/convert/document.pdf > "${tmp_dir}/${1%.*}.pdf"
 }
 
-[[ -z "$1" ]] && help_and_exit
-
-tmp_dir=$(mktemp -d)
-doc2pdf "$1"
-termpdf "${tmp_dir}/${1%.*}.pdf"
-rm -rf $tmp_dir
-
-
-
-
-
+case "$1" in
+    *.pdf|*.djvu|*.tif|*.tif)
+        termpdf "$1"
+        ;;
+    *.doc|*.docx|*.xls|*.xlsx|*.ppt|*.pptx)
+        tmp_dir=$(mktemp -d)
+        doc2pdf "$1"
+        termpdf "${tmp_dir}/${1%.*}.pdf"
+        rm -rf $tmp_dir
+        exit
+        ;;
+    *)
+        help_and_exit
+        ;;
+esac
 
