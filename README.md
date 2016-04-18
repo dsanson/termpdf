@@ -161,12 +161,20 @@ There is no robust error checking. This is just a bash script.
 
 # TODO
 
--   support for TIFF files: removed when the script was rewritten; should not
-    be hard to add back in.
+-   better handling of pdfs with transparent backgrounds. See Issue #10.
 -   implement search using `pdfgrep`. This was in an earlier version of the
-    script, but was removed because it was complicated.
--   rewrite in real language (using ncurses?)
-
+    script, but was removed because it was complicated. I'm not sure what the
+    best minimal implementation of search is. One problem is that there is no
+    easy way to indicate *where* the search term was found on a page, since
+    the page is just an image and we don't have any reasonable way to
+    highlight matches.
+-   rewrite in real language (using ncurses?). It would be really cool to have
+    a PDF viewer for vim+tmux with the power of emacs'
+    [pdf-tools](https://github.com/politza/pdf-tools). But that's not going to
+    happen using bash. Also, if written in a proper language, it would be
+    easier to implement other image drawing schemes that would work in
+    X11 terminals.    
+    
   [the beta test release or a nightly build]: https://iterm2.com/downloads.html
   [Poppler]: http://poppler.freedesktop.org/
   [screenshot]: screenshot.png

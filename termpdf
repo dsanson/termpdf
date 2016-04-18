@@ -118,8 +118,7 @@ function get_total_number_of_pages() {
                 | grep "^Pages:" | awk '{print $2}') 
             ;;
         djvu)
-            total_pages=$(djvudump "$1" 2>/dev/null \
-                | sed -n '2s/.*files //;s/ pages)//p')
+            total_pages=$(djvused -e 'n' "$1" 2>/dev/null) 
             ;;
         tif|tiff)
             total_pages=$(tiffinfo "$1" 2>/dev/null \
@@ -216,6 +215,9 @@ function setup() {
     keys
     print_settings
     set_background
+    if [[ -f "$HOME/.config/termpdf/config" ]]; then
+        source "$HOME/.config/termpdf/config"
+    fi
 }
 
 ###########################################################################
@@ -344,6 +346,29 @@ function extract_page() {
 
 
 ###########################################################################
+# Functions for searching for text
+###########################################################################
+
+search_djvu() {
+    p=$[$page_number + $1]
+    until djvutxt --page=$p $document | grep -i "$2" 
+    do
+        p=$[$p+1]
+        if [[ $p -gt $total_pages ]]; then
+            p=1
+        elif [[ $p -eq $page_number ]]; then
+            message="no matches found"
+            break
+        fi
+    done
+    if [[ "$message" != "no matches found" ]]; then
+        read -n 1
+        goto $p
+    fi
+}
+
+
+###########################################################################
 # Function for exporting some pages of the document to a new PDF file
 #
 #    export_pdf page page
@@ -398,7 +423,7 @@ function notes() {
     if [[ ! $TMUX ]]; then
         $EDITOR "$notes" +/"Page $page_number"
     else
-        tmux split-window -h -d $EDITOR "$notes" +/"Page $page_number$" -c "foldopen" -c "normal jj" 
+        tmux split-window -h -d $EDITOR "$notes" +/"Page $page_number" -c "foldopen" -c "normal jj" 
         refresh
     fi
 }
@@ -550,6 +575,50 @@ function crop() {
     else
         cropped=""
     fi
+}
+
+function search() {
+    case $filetype in
+        pdf)
+            message="pdf search not yet implemented"
+            ;;
+        djvu)
+            search_djvu 0 $1
+            ;;
+        *)
+            message="search not supported for this filetype"
+            ;;
+    esac
+}
+
+function search_next() {
+    # search string
+    case $filetype in
+        pdf)
+            message="pdf search not yet implemented"
+            ;;
+        djvu)
+            search_djvu 1 $1
+            ;;
+        *)
+            message="search not supported for this filetype"
+            ;;
+    esac
+}
+
+function search_previous() {
+    # search string
+    case $filetype in
+        pdf)
+            message="pdf search not yet implemented"
+            ;;
+        djvu)
+            search_djvu -1 $1
+            ;;
+        *)
+            message="search not supported for this filetype"
+            ;;
+    esac
 }
 
 function print() {
