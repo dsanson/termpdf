@@ -185,6 +185,29 @@ There is no robust error checking. This is just a bash script.
     easier to implement other image drawing schemes that would work in
     X11 terminals.    
     
+# Similar Projects
+
+Emacs users already know about
+[pdf-tools](https://github.com/politza/pdf-tools). It would be amazing to
+replicate its level of functionality for a pdf viewer in the tmux+vim
+workflow.
+
+
+-   [fbpdf](http://repo.or.cz/fbpdf.git): a pdf viewer for the framebuffer
+    with vim-like navigation.
+-   [jfbview](https://seasonofcode.com/pages/jfbview.html): another pdf viewer for
+    the framebuffer.
+-   [imgcat](https://iterm2.com/images.html): the sample imgcat implementation
+    from the developer of iTerm2. Works in tmux. Doesn't provide control over
+    width and height of image.
+-   [term-img](https://github.com/sindresorhus/term-img): javascript node
+    library for viewing images in iTerm2. Also offers a command line tool.
+    Doesn't work in tmux.
+-   [imgcat-cli](https://github.com/egoist/imgcat-cli): a javascript node
+    image viewer for iTerm2 (fork of term-img). Doesn't work in tmux.
+-   [termimg](https://github.com/frnsys/termimg): uses `w3mimgdisplay`.
+
+
   [the beta test release or a nightly build]: https://iterm2.com/downloads.html
   [Poppler]: http://poppler.freedesktop.org/
   [screenshot]: screenshot.png
