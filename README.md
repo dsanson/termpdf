@@ -26,13 +26,20 @@ Requirements
 OS X and iTerm 2 > 2.9
 -------------
 
-This only works on OS X because iTerm 2 is only available on OS X. A
-previous version of the script tried to support X11 using `w3mimgdisplay`,
-but that didn't work and made everything a lot more complicated, so I 
-removed it.
-
+This only works on OS X because iTerm 2 is only available on OS X. 
 Support for inline images was added in iTerm 2.9. So, at least for now, that
 means you will need to install [the beta test release or a nightly build]. 
+
+A previous version of the script tried to support X11 using `w3mimgdisplay`.
+That got complicated and it didn't work, so I removed it. I'd be happy to add
+support for X11 back in if someone knows how to make it work.
+
+The biggest headache with `w3mimgdisplay` is figuring out how to get the image
+to fit inside a terminal window or tmux pane: it is easy to get the size of
+the window or pane in characters, but `w3mimgdisplay` takes dimensions in
+pixels, not characters. It looks like [termimg] might solve this problem.
+
+  [termimg]: https://github.com/frnsys/termimg
 
 Poppler
 -------
