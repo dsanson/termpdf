@@ -3,10 +3,8 @@
 
 
 help_and_exit() {
-    echo "termdoc wraps doc2pdf.net with termpdf, giving you a way"
-    echo "to view MS Word, Excel, and Powerpoint documents in iTerm2"
-    echo
-    echo "WARNING: do not use for confidential documents!"
+    echo "termdoc uses libreoffice (if available) or the online service doc2pdf"
+    echo "to convert and display MS Office files using termpdf"
     echo
     echo "Usage:"
     echo "    termdoc file.docx"
@@ -17,13 +15,36 @@ doc2pdf() {
    curl -# -F inputDocument=@"$1" http://www.doc2pdf.net/convert/document.pdf > "${tmp_dir}/${1%.*}.pdf"
 }
 
+soffice() {
+    $soffice_binary \
+        --headless \
+        --convert-to pdf \
+        --outdir ${tmp_dir} \
+        "$1" & 
+        # if iTerm is in fullscreen, soffice will steal focus
+        sleep .5
+        osascript -e 'tell application "iTerm" to activate'
+        wait
+}
+
 case "$1" in
     *.pdf|*.djvu|*.tif|*.tif)
         termpdf "$1"
         ;;
-    *.doc|*.docx|*.xls|*.xlsx|*.ppt|*.pptx)
+    *)
         tmp_dir=$(mktemp -d)
-        doc2pdf "$1"
+        for i in "/Applications/LibreOffice.app/Contents/MacOS/soffice" \
+            "$HOME/Applications/LibreOffice.app/Contents/MacOS/soffice" 
+        do
+            if [[ -x "$i" ]]; then
+                soffice_binary="$i"
+                use_soffice=true
+                soffice "$1"
+            fi
+        done 
+        if [[ -z $use_soffice ]]; then
+            doc2pdf "$1"
+        fi
         termpdf "${tmp_dir}/${1%.*}.pdf"
         rm -rf $tmp_dir
         exit
