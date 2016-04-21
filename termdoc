@@ -3,11 +3,15 @@
 
 
 help_and_exit() {
-    echo "termdoc uses libreoffice (if available) or the online service doc2pdf"
-    echo "to convert and display MS Office files using termpdf"
+    echo "termdoc is a wrapper around libreoffice and termpdf, for"
+    echo "viewing various file formats in your terminal."
     echo
     echo "Usage:"
-    echo "    termdoc file.docx"
+    echo "    termdoc <options> file.docx"
+    echo 
+    echo "    options:"
+    echo "         -d: use doc2pdf instead of libreoffice"
+    echo "             WARNING: DONT USE FOR CONFIDENTIAL DOCS"
     exit
 }
 
@@ -27,23 +31,37 @@ soffice() {
         wait
 }
 
+if [[ "$1" == "-h" ]]; then
+    help_and_exit
+fi
+
+if [[ "$1" == "-d" ]]; then
+    shift 1
+    use_doc2pdf=true
+else
+    for i in "/Applications/LibreOffice.app/Contents/MacOS/soffice" \
+        "$HOME/Applications/LibreOffice.app/Contents/MacOS/soffice" 
+    do
+        if [[ -x "$i" ]]; then
+            soffice_binary="$i"
+        fi
+    done 
+fi
+
 case "$1" in
     *.pdf|*.djvu|*.tif|*.tif)
         termpdf "$1"
         ;;
     *)
         tmp_dir=$(mktemp -d)
-        for i in "/Applications/LibreOffice.app/Contents/MacOS/soffice" \
-            "$HOME/Applications/LibreOffice.app/Contents/MacOS/soffice" 
-        do
-            if [[ -x "$i" ]]; then
-                soffice_binary="$i"
-                use_soffice=true
-                soffice "$1"
-            fi
-        done 
-        if [[ -z $use_soffice ]]; then
+        if [[ $use_doc2pdf == "true" ]]; then
             doc2pdf "$1"
+        elif [[ -z "$soffice_binary" ]]; then
+            echo "LibreOffice not found."
+            rm -rf $tmp_dir
+            exit
+        else
+            soffice "$1"
         fi
         termpdf "${tmp_dir}/${1%.*}.pdf"
         rm -rf $tmp_dir

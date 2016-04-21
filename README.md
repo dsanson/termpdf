@@ -138,15 +138,18 @@ customizable autocompletion when called within scripts. But it is there.
 
 # `termdoc`
 
-`termdoc` is a wrapper script for viewing Microsoft Office documents (word,
-excel, powerpoint) using `termpdf`.
+`termdoc` is a wrapper script for viewing more filetypes using `termpdf`, by
+converting them as needed to formats supported by `termpdf`.
 
-It uses the free doc2pdf.net conversion service, so it will
-only work if you are online. Also note that doc2pdf.net is not recommended for
-confidential documents, for obvious reasons.
+In it's current iteration, it uses [LibreOffice](https://www.libreoffice.org/) if it can find it in your
+`/Applications` or `~/Applications` folder. This works well for LibreOffice's
+native ODF formats (like ODT), and reasonably well for Microsoft office
+formats (Word, Excel, Powerpoint) and LibreOffice formats (ODT). 
 
-It would be trivial to rewrite this to use `unoconv`, but I am not interested
-in installing an old version of Libreoffice just so I can use `unoconv`.
+If you don't have LibreOffice installed, `termdoc` can use the free
+online doc2pdf.net conversion service. Obviously this will only work online.
+Also note that doc2pdf.net is not recommended for confidential documents, for
+obvious reasons.
 
 # Known issues
 
