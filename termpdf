@@ -226,8 +226,8 @@ function second_setup() {
     print_command="lp"
     print_options="-o sides=two-sided-long-edge"
     make_command=""
-    
-    document_fullpath="$(pwd)/$document"
+   
+    document_fullpath=$(cd $(dirname "$document") && pwd -P)/$(basename "$document")
     document_containing_folder="${document_fullpath%/*}"
     document_name="${document_fullpath##*/}"
     cd "$document_containing_folder"
@@ -400,7 +400,7 @@ function extract_page() {
                 image="$document"
                 ;;
             *)
-                image=""
+                image="$document"
                 ;;
         esac
     fi
