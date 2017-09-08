@@ -226,7 +226,7 @@ function second_setup() {
     print_command="lp"
     print_options="-o sides=two-sided-long-edge"
     make_command=""
-
+    
     document_fullpath="$(pwd)/$document"
     document_containing_folder="${document_fullpath%/*}"
     document_name="${document_fullpath##*/}"
@@ -396,8 +396,11 @@ function extract_page() {
             tif*)
                 extract_tiff_page "$1" "$2" "$3" "$4"
                 ;;
-            *)
+            jpg|jpeg|png|gif|gifv|svg)
                 image="$document"
+                ;;
+            *)
+                image=""
                 ;;
         esac
     fi
