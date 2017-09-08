@@ -97,13 +97,13 @@ function get_pane_size() {
 
 function set_background() {
     if [[ $TMUX ]]; then
-    : #   tmux select-pane -P 'bg=white'
+    :    tmux select-pane -P 'bg=white'
     fi
 }
 
 function revert_background() {
     if [[ $TMUX ]]; then
-    : #   tmux select-pane -P 'default'
+    :    tmux select-pane -P 'default'
     fi
 }
 
@@ -134,7 +134,7 @@ function get_total_number_of_pages() {
 }
 
 function validate_page_number() {
-    if [[ $page_number == "" ]]; then
+    if [[ ! $page_number =~ ^[0-9]+$ ]]; then
         page_number=1
     fi
     if [[ "${page_number}" -le 0 ]]; then 
@@ -158,13 +158,21 @@ function print_document() {
     else
         range="$2"
     fi
-    read -n 1 -p "Print $1 copies of pages $range? " reply
-    if [[ $reply == 'y' ]]; then
-        message="printing..."
-        display_bar
-        $print_command $print_options -n $1 -P $range "$document"
-        message="print job sent"
-    fi
+    read -n 1 -p "Print $1 copies of pages $range? [Y/n] " reply
+    case $reply in
+        $'\e')
+            message="printing cancelled"
+            ;;
+        Y|y|'')
+            message="printing..."
+            display_bar
+            $print_command $print_options -n $1 -P $range "$document"
+            message="print job sent"
+            ;;
+        *)
+            message="printing cancelled"
+            ;;
+    esac
 }
 
 ###########################################################################
@@ -181,9 +189,9 @@ function keys() {
             mark="m"
             reference="'"
         fi
-        # search="/" # search not implemented
-        next_result="n" # search not implemented
-        previous_result="N" # search not implemented
+        search="/" # search not implemented
+        next="n" # search not implemented
+        previous="N" # search not implemented
         refresh="r"
         reload="R"
         make="M"
@@ -199,25 +207,63 @@ function keys() {
 ###########################################################################
 
 
-function print_settings() {
-   print_command="lp"
-   print_options="-o sides=two-sided-long-edge"
-}
 
 ###########################################################################
 # Do all the little things we need to do when first started
 ###########################################################################
 
-function setup() {
+function first_setup() {
     page_number=1
     cropped=""
     tmp_dir=$(mktemp -d)
     keys
-    print_settings
-    set_background
+}
+
+function second_setup() {
+
+    # override these settings by creating a config file
+    guiviewer="Preview.app" 
+    print_command="lp"
+    print_options="-o sides=two-sided-long-edge"
+    make_command=""
+
+    document_fullpath="$(pwd)/$document"
+    document_containing_folder="${document_fullpath%/*}"
+    document_name="${document_fullpath##*/}"
+    cd "$document_containing_folder"
+    document="$document_name"
+
+    if [[ -f "Makefile" ]]; then
+        make_command="make $document"
+    fi
+
+    # read optional config file, if it exists:
+    #
+    #    Global config:    $HOME/.config/termpdf/config 
+
     if [[ -f "$HOME/.config/termpdf/config" ]]; then
         source "$HOME/.config/termpdf/config"
     fi
+
+    # Look to see if the document has been opened before, and if so
+    # find last open page and marks.
+    
+    touch "$HOME/.config/termpdf/cache" 
+    saved_data=$(grep "$document_fullpath" "$HOME/.config/termpdf/cache" | cut -d' ' -f 2-)
+    if [[ ! "$saved_data" == "" ]]; then
+        page_number=$(echo "$saved_data" | awk '{print $1}')
+        if [[ -n $enable_marks ]]; then
+            saved_marks="$(echo "$saved_data" | cut -d' ' -f 2-)"
+            for i in $saved_marks; do
+                reg="${i%%:*}"
+                pag="${i##*:}"
+                marks[$reg]="$pag"
+            done
+        fi 
+    else 
+        echo "$document_fullpath" "1" >> "$HOME/.config/termpdf/cache"
+    fi
+
 }
 
 ###########################################################################
@@ -239,6 +285,13 @@ function reload() {
 function clean_and_exit() {
     rm -rf "$tmp_dir"
     revert_background
+    doc_state="$page_number"
+    if [[ -n $enable_marks ]]; then
+        for reg in ${!marks[@]}; do
+            doc_state="$doc_state $reg:${marks[$reg]}"
+        done
+    fi
+    sed -i '.bak' "s|^$document_fullpath.*|$document_fullpath $doc_state|" "$HOME/.config/termpdf/cache"
     clear
     exit
 }
@@ -292,6 +345,12 @@ function crop_margins() {
      fi
 }
 
+function two_columns() {
+     if [[ ! -f "${tmp_dir}/${1}${2}_cols.pdf" ]]; then
+         k2pdfopt -ocr- -ui- -x -col 2 -o '%s_cols.pdf' "${tmp_dir}/${1}${2}.pdf" > /dev/null
+     fi
+}
+
 ###########################################################################
 # Functions for extracting and caching a single page from a multipage
 # pdf or djvu file.
@@ -301,16 +360,20 @@ function crop_margins() {
 
 function extract_pdf_page() {
     pdfseparate -f "$4" -l "$4" "${1}/${2}.${3}" "${tmp_dir}/${2}%d.pdf"
+    image="${tmp_dir}/${2}${4}${cropped}.pdf"
 }
 
 function extract_djvu_page() {
-    djvups -page=$4 "${1}/${2}.${3}" - \
-        | ps2pdf - "${tmp_dir}/${2}${4}.pdf"
+    # djvups -page=$4 "${1}/${2}.${3}" - \
+    #     | ps2pdf - "${tmp_dir}/${2}${4}.pdf"
+    ddjvu -format=pdf -page=$4 "${1}/${2}.${3}" "${tmp_dir}/${2}${4}.pdf"
+    image="${tmp_dir}/${2}${4}${cropped}.pdf"
 }
 
 function extract_tiff_page() {
     tiffutil -extract "$[$4 - 1]" "${1}/${2}.${3}" -o "${tmp_dir}/out.tiff" 2>/dev/null 
     tiff2pdf -o "${tmp_dir}/${2}${4}.pdf" "${tmp_dir}/out.tiff" 2>/dev/null
+    image="${tmp_dir}/${2}${4}${cropped}.pdf"
 }
 
 
@@ -334,13 +397,15 @@ function extract_page() {
                 extract_tiff_page "$1" "$2" "$3" "$4"
                 ;;
             *)
-                echo "filetype not supported"
-                exit
+                image="$document"
                 ;;
         esac
     fi
-    if [[ "$cropped" != "" ]]; then
+    if [[ "$cropped" == "_k2opt" ]]; then
         crop_margins "$2" "$4"
+    fi
+    if [[ "$cropped" == "_cols" ]]; then
+        two_columns "$2" "$4"
     fi
 }
 
@@ -350,23 +415,54 @@ function extract_page() {
 ###########################################################################
 
 search_djvu() {
-    p=$[$page_number + $1]
-    until djvutxt --page=$p $document | grep -i "$2" 
-    do
-        p=$[$p+1]
-        if [[ $p -gt $total_pages ]]; then
-            p=1
-        elif [[ $p -eq $page_number ]]; then
-            message="no matches found"
-            break
-        fi
-    done
-    if [[ "$message" != "no matches found" ]]; then
-        read -n 1
-        goto $p
-    fi
+    message="djvu search not implemented"
 }
 
+search_pdf() {
+    allresults=$(pdfgrep -n -C $message_length "$@" "$document")
+    readarray -t results <<< "$allresults"
+    for (( i=0; i<${#results[@]}; i++ ))
+    do
+        if [[ "${results[$i]%%:*}" -ge "$page_number" ]]
+        then
+            search_index=$i
+            break
+        fi
+        search_index=0
+    done
+    goto_result $search_index
+}
+
+goto_result() {
+    message="[$[$search_index + 1]/$[ ${#results[@]} + 1 ]] ${results[$1]#*:}"
+    goto ${results[$1]%%:*}
+}
+
+next_result() {
+    search_index=$[$search_index + $1]
+    if [[ $search_index -gt ${#results[@]} ]]
+    then
+        if [[ $wrap_search == "true" ]]
+        then
+            search_index=$[$search_index - ${#results[@]}]
+        else
+            search_index=${#results[@]}
+            tput bel
+            message="last result"
+        fi
+    elif [[ $search_index -lt 0 ]]
+    then
+        if [[ $wrap_search == "true" ]]
+        then
+            search_index=$[${#results[@]} + $search_index]
+        else
+            search_index=0
+            tput bel
+            message="first result"
+        fi
+    fi
+    goto_result $search_index
+}
 
 ###########################################################################
 # Function for exporting some pages of the document to a new PDF file
@@ -412,23 +508,21 @@ function export_pdf() {
 # this if you would rather use org or whatever.
 ###########################################################################
 
+
 function notes() {
     notes="${document%%.*}_notes.md"
     if [[ ! -f "$notes" ]]; then
         printf -- "---\ntitle: Notes on %s\nauthor: %s\ndate: %s\n...\n\n" "${document##*/}" "$(id -F)" "$(date)" >> "$notes" 
-        for (( i=1; i<=$total_pages; i++ )); do
-            printf "# Page %s\n\n\n\n" $i >> "$notes"
-        done
     fi
-    if [[ ! $TMUX ]]; then
-        $EDITOR "$notes" +/"Page $page_number"
+    if [[ "$note_command" ]]; then
+        $note_command "$notes"
+    elif [[ ! $TMUX ]]; then
+        $EDITOR "$notes" +
     else
-        tmux split-window -h -d $EDITOR "$notes" +/"Page $page_number" -c "foldopen" -c "normal jj" 
+        tmux split-window -h -d $EDITOR "$notes" + 
         refresh
     fi
 }
-
-
 
 ###########################################################################
 # Draw the status bar 
@@ -554,19 +648,19 @@ function refresh() {
 }
 
 function remake() {
-    if [[ -f "Makefile" ]]; then 
+    if [[ "$makecommand" == '' ]]; then
         clear
-        make "$document"
+        $make_command
         reload
         clear
     else
-        message="No Makefile present"
+        message="create a Makefile or .termpdf to enable remake"
     fi
 }
 
-# open the document in your default pdf viewer
+# open the document in your preferred gui pdf viewer
 function gui() {
-    open "$1"
+    open -a "$guiviewer" "$1"
 }
 
 function crop() {
@@ -580,40 +674,10 @@ function crop() {
 function search() {
     case $filetype in
         pdf)
-            message="pdf search not yet implemented"
+            search_pdf "$@" 
             ;;
         djvu)
-            search_djvu 0 $1
-            ;;
-        *)
-            message="search not supported for this filetype"
-            ;;
-    esac
-}
-
-function search_next() {
-    # search string
-    case $filetype in
-        pdf)
-            message="pdf search not yet implemented"
-            ;;
-        djvu)
-            search_djvu 1 $1
-            ;;
-        *)
-            message="search not supported for this filetype"
-            ;;
-    esac
-}
-
-function search_previous() {
-    # search string
-    case $filetype in
-        pdf)
-            message="pdf search not yet implemented"
-            ;;
-        djvu)
-            search_djvu -1 $1
+            search_djvu "$@"
             ;;
         *)
             message="search not supported for this filetype"
@@ -635,7 +699,8 @@ function print() {
 ###########################################################################
 
 function command_mode() {
-    read -ea command
+    tput cup $height 0
+    read -p ':' -ea command
     case ${command[0]} in
         q|qu|qui|quit)
             quit
@@ -670,6 +735,13 @@ function command_mode() {
             # search string
             # search ${command[1]}
             # search not implemented
+            search "${command[@]:1}"
+            ;;
+        next)
+            next_result "1" 
+            ;;
+        previous)
+            next_result "-1"
             ;;
         refresh)
             refresh
@@ -679,7 +751,14 @@ function command_mode() {
             ;;
         e|edit|o|open)
             # open another document instead of this one
-            if [[ -f "${command[1]}" ]]; then
+            if [[ "${command[1]}" == "" ]]; then
+                clear
+                select_document
+            elif [[ -d "${command[1]}" ]]; then
+                cd "${command[1]}"
+                clear
+                select_document
+            elif [[ -f "${command[1]}" ]]; then
                 display_document ${command[1]}
             else
                 message="${command[1]} does not exist"
@@ -704,6 +783,9 @@ function command_mode() {
             ;;
         help)
             help
+            ;;
+        col)
+            cropped="_cols" 
             ;;
     esac
 }
@@ -813,6 +895,19 @@ function read_command() {
         "$notes")
             notes
             ;;
+        "$search")
+            tput cup $height 0
+            read -p "$search" query
+            search "$query"
+            ;;
+        "$next")
+            check_count
+            next_result $count
+            ;;
+        "$previous")
+            check_count
+            next_result $[0 - $count]
+            ;;
         "$quit")
             quit
             ;;
@@ -858,7 +953,7 @@ function display_document() {
         validate_page_number 
         get_pane_size 
         extract_page "$filepath" "$fileroot" "$filetype" "$page_number" 
-        image="${tmp_dir}/${fileroot}${page_number}${cropped}.pdf"
+    #    image="${tmp_dir}/${fileroot}${page_number}${cropped}.pdf"
         tput cup 0 0 
         print_image "$image" 1 "$(base64 < "$image")" $width $height
         display_bar
@@ -873,9 +968,15 @@ function display_document() {
 ###########################################################################
 
 function select_document() {
-     display_bar
+    tput cup 0 0
+    ls -l
+    display_bar
     read -e -p "Open: " new_file
-    if [[ -r $new_file ]]; then
+    if [[ -d $new_file ]]; then
+        cd "$new_file"
+        clear
+        select_document
+    elif [[ -r $new_file ]]; then
         document=$new_file 
     elif [[ -z $new_file ]]; then
         clean_and_exit
@@ -911,7 +1012,7 @@ function display_banner() {
 # Main Program
 ###########################################################################
 
-setup
+first_setup
 
 if [[ -z "$1" || ! -f "$1" ]]; then
     get_pane_size
@@ -920,6 +1021,8 @@ if [[ -z "$1" || ! -f "$1" ]]; then
 else
     document="$1"
 fi
+
+second_setup
 
 display_document "$document"
 
