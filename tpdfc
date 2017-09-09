@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+# usage:
+#   tpdfc <termpdf command>
+#
+# for example,
+#
+#   tpdfc goto 5
+#
+# will tell 
+
+function help(){
+    echo "$(basename $0) usage:"
+    echo "    $(basename $0) <option> <termpdf command>"
+    echo "    options:"
+    echo "       -n N    if there is more than one instance of termpdf"
+    echo "               running, communicate with the Nth instance."
+    echo "               (As ordered by pdfgrep -f termpdf)"
+    echo "       -p PID  communicate with the instance of termpdf with"
+    echo "               the specified PID"
+    echo
+    echo "    <termpdf command> can be any command available from the"
+    echo "    command mode within termpdf. E.g., 'goto 5' will flip to"
+    echo "    page 5."
+}
+
+
+n=1
+
+if [[ "$1" == '-n' ]]; then
+    shift
+    if [[ "$1" =~ ^[0-9]+$ ]]; then
+        n="$1"
+        shift
+    else
+        help
+        exit 1
+    fi
+fi
+
+if [[ "$1" == '-p' ]]; then
+    shift
+    if [[ "$1" =~ ^[0-9]+$ ]]; then
+        termpdfPID="$1"
+        shift
+    else
+        help
+        exit 1
+    fi
+else
+    termpdfPID=$(pgrep -f termpdf | sed $n'q;d')
+fi
+
+signal_file="$HOME/.config/termpdf/sigusr1"
+echo "$@" > "$signal_file"
+kill -SIGUSR1 $termpdfPID

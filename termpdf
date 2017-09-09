@@ -278,7 +278,21 @@ function second_setup() {
         echo "$document_fullpath" "1" >> "$HOME/.config/termpdf/cache"
     fi
 
+    # set a trap to allow other scripts to send commands
+    signal_file="$HOME/.config/termpdf/sigusr1"
+    trap external_command SIGUSR1
 }
+
+# function for processing external commands
+
+function external_command(){
+    if [[ -r "$signal_file" ]]; then
+       read -a command < "$signal_file"
+    fi
+    process_command_mode
+    display_document "$document"
+}
+
 
 ###########################################################################
 # "Reload" the document by deleting all the cached pages
@@ -741,6 +755,11 @@ function print() {
 function command_mode() {
     tput cup $height 0
     read -p ':' -ea command
+    process_command_mode  
+}
+
+function process_command_mode(){
+    echo ${command[0]}
     case ${command[0]} in
         q|qu|qui|quit)
             quit
@@ -1077,7 +1096,7 @@ function display_document() {
 ###########################################################################
 
 trap 'error_and_exit "interrupted"' SIGINT 
-trap clean_and_exit TERM
+trap clean_and_exit SIGTERM
 
 first_setup
 
