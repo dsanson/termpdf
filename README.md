@@ -157,8 +157,21 @@ There is also rudimentary undocumented support for `:` style commands, e.g.,
     :marks                                list marks
     :quit                                 quit
 
-This is mostly useless, because bash's `read` command doesn't support
-customizable autocompletion when called within scripts. But it is there. 
+This is mostly useless from within the software, because bash's `read` command
+doesn't support customizable autocompletion when called within scripts.
+
+# Controlling `termpdf` using `tpdfc`
+
+You can issue commands to a running instance of `termpdf` using the command
+`tpdfc`. For example,
+
+    $ tpdfc goto 5
+
+will flip to page 5. If more than one instance of `termpdf` is running, you
+can specify the instance you wish to control either by PID or just by number:
+
+    $ tpdfc -n 2 goto 5
+    $ tpdfc -p <PID> goto 5
 
 # `termdoc`
 
