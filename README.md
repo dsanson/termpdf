@@ -1,7 +1,8 @@
 termpdf
 =======
 
-`termpdf` is a barebones inline graphical PDF (and DJVU and TIFF) viewer for
+`termpdf` is a barebones inline graphical PDF (and DJVU and TIFF and CBR and
+CBZ and other images) viewer for
 iTerm 2.9 or later on OS X. It is a ridiculous hack---a bash script wrapped around
 some special terminal escape codes. But it works well enough for me to be
 useful.
@@ -27,8 +28,7 @@ OS X and iTerm 2 > 2.9
 -------------
 
 This only works on OS X because iTerm 2 is only available on OS X. 
-Support for inline images was added in iTerm 2.9. So, at least for now, that
-means you will need to install [the beta test release or a nightly build]. 
+Support for inline images was added in iTerm 2.9. 
 
 A previous version of the script tried to support X11 using `w3mimgdisplay`.
 That got complicated and it didn't work, so I removed it. I'd be happy to add
@@ -38,6 +38,10 @@ The biggest headache with `w3mimgdisplay` is figuring out how to get the image
 to fit inside a terminal window or tmux pane: it is easy to get the size of
 the window or pane in characters, but `w3mimgdisplay` takes dimensions in
 pixels, not characters. It looks like [termimg] might solve this problem.
+
+I am also keeping my eye on [this possible enhancement to
+Kitty.app](https://github.com/kovidgoyal/kitty/issues/33).
+
 
   [termimg]: https://github.com/frnsys/termimg
 
@@ -53,11 +57,11 @@ are provided by [Poppler]:
 DJVULibre and Ghostscript
 -------------------------
 
-The script uses `djvups` and `ps2pdf` to extract pages from DJVU documents and
+The script uses `ddjvu` to extract pages from DJVU documents and
 convert them to PDF, and `djvudump` to figure out how many pages a DJVU
-document has. These commands are provided by DJVULibre and Ghostscript:
+document has. These commands are provided by DJVULibre: 
 
-    $ brew install ghostscript djvulibre
+    $ brew install djvulibre
 
 libtiff
 -------
@@ -67,6 +71,14 @@ TIFF files and convert them to PDF, and `tiffinfo` to figure out how many
 pages a TIFF document has. These commands are provided by libtiff:
 
     $ brew install libtiff
+
+unrar
+-----
+
+The script uses `unrar` to open RAR archives and CBR comic books. To install:
+
+    $ brew install unrar
+
 
 K2pdfopt
 --------
@@ -100,10 +112,15 @@ Usage
 
 ```.bash
 $ termpdf <file> 
+$ termpdf <directory>
 ```
 
-File type is determined by extension ('pdf' and 'djvu' are currently the only
-two supported formats).
+File type is determined by extension. Supported formats include: PDF, DJVU, TIF,
+CBR, CBZ, CBT, JPG, JPEG, PNG, GIF, and BMP.
+
+`termpdf` will treat a directory as though it is a document, and each image
+file below the directory as a page. It will do the same with RAR, ZIP, and TAR
+archives.
 
 While viewing a file, the default key commands are:
 
@@ -164,8 +181,7 @@ Various events, like resizing panes, can cause tmux to clobber the
 displayed page. Use the 'refresh display' command (`r`) to fix this.
 
 The make command right now only works if you have a Makefile in the same
-directory as the PDF, and you launched termpdf from that directory. It would
-be nice to support a configurable make command.
+directory as the PDF. It would be nice to support a configurable make command.
 
 There is no robust error checking. This is just a bash script.
 

@@ -113,16 +113,31 @@ function revert_background() {
 
 function get_total_number_of_pages() {
     case $filetype in
-        pdf)
-            total_pages=$(pdfinfo "$1" 2>/dev/null \
-                | grep "^Pages:" | awk '{print $2}') 
+        pdf|PDF)
+            if command -v pdfinfo &>/dev/null; then
+                total_pages=$(pdfinfo "$1" 2>/dev/null \
+                    | grep "^Pages:" | awk '{print $2}') 
+            else
+                error_and_exit "Install poppler to view PDF files."
+            fi
             ;;
-        djvu)
-            total_pages=$(djvused -e 'n' "$1" 2>/dev/null) 
+        djvu|DJVU)
+            if command -v djvused  &>/dev/null; then
+                total_pages=$(djvused -e 'n' "$1" 2>/dev/null) 
+            else
+                error_and_exit "Install djvulibre to view DJVU files."
+            fi
             ;;
-        tif|tiff)
-            total_pages=$(tiffinfo "$1" 2>/dev/null \
-                | sed -n 's/ *PageName: Page //p' | tail -n 1)
+        tif|TIF|tiff|TIFF)
+            if command -v tiffinfo &>/dev/null; then
+                total_pages=$(tiffinfo "$1" 2>/dev/null \
+                    | sed -n 's/ *PageName: Page //p' | tail -n 1)
+            else
+                error_and_exit "Install libtiff to view TIFF files."
+            fi
+            ;;
+        directory)
+            total_pages=$(find "$1" -type f -exec file {} \; | awk -F: '{if ($2 ~/image/) print $1}' | cat -n | awk 'END{print $1}')
             ;;
         *)
             total_pages=1 
@@ -232,7 +247,6 @@ function second_setup() {
     document_name="${document_fullpath##*/}"
     cd "$document_containing_folder"
     document="$document_name"
-
     if [[ -f "Makefile" ]]; then
         make_command="make $document"
     fi
@@ -296,6 +310,17 @@ function clean_and_exit() {
     exit
 }
 
+###########################################################################
+# Error and exit
+###########################################################################
+
+function error_and_exit() {
+    rm -rf "$tmp_dir"
+    revert_background
+    >&2 echo "$(basename $0) error:"
+    >&2 echo "    $1"
+    exit 1
+}
 
 ###########################################################################
 # Many commands have a vim-style optional "count" (e.g, 5j moves forward 
@@ -359,48 +384,53 @@ function two_columns() {
 ###########################################################################
 
 function extract_pdf_page() {
-    pdfseparate -f "$4" -l "$4" "${1}/${2}.${3}" "${tmp_dir}/${2}%d.pdf"
-    image="${tmp_dir}/${2}${4}${cropped}.pdf"
+    pdfseparate -f "$3" -l "$3" "${1}.${2}" "${tmp_dir}/${1}%d.pdf"
+    image="${tmp_dir}/${1}${3}${cropped}.pdf"
 }
 
 function extract_djvu_page() {
-    # djvups -page=$4 "${1}/${2}.${3}" - \
-    #     | ps2pdf - "${tmp_dir}/${2}${4}.pdf"
-    ddjvu -format=pdf -page=$4 "${1}/${2}.${3}" "${tmp_dir}/${2}${4}.pdf"
-    image="${tmp_dir}/${2}${4}${cropped}.pdf"
+    ddjvu -format=pdf -page=$3 "${1}.${2}" "${tmp_dir}/${1}${3}.pdf"
+    image="${tmp_dir}/${1}${3}${cropped}.pdf"
 }
 
 function extract_tiff_page() {
-    tiffutil -extract "$[$4 - 1]" "${1}/${2}.${3}" -o "${tmp_dir}/out.tiff" 2>/dev/null 
-    tiff2pdf -o "${tmp_dir}/${2}${4}.pdf" "${tmp_dir}/out.tiff" 2>/dev/null
-    image="${tmp_dir}/${2}${4}${cropped}.pdf"
+    tiffutil -extract "$[$3 - 1]" "${1}.${2}" -o "${tmp_dir}/out.tiff" 2>/dev/null 
+    tiff2pdf -o "${tmp_dir}/${1}${3}.pdf" "${tmp_dir}/out.tiff" 2>/dev/null
+    image="${tmp_dir}/${1}${3}${cropped}.pdf"
 }
 
-
+function choose_from_directory() {
+    image="$(find "${1}" -type f -exec file {} \; | awk -F: '{if ($2 ~/image/) print $1}' | sed ${2}'q;d')"
+#    image="$(find "${1}" -type f | sed ${2}'q;d')"
+}
 
 ###########################################################################
 # Wrapper function for extracting page depending on file type 
 #
-#    extract_page path rootname extension page-number
+#    extract_page rootname extension page-number
 ###########################################################################
 
 function extract_page() {
     if [[ ! -f "${tmp_dir}/${2}${4}.pdf" ]]; then
         case $filetype in
-            pdf)
-                extract_pdf_page "$1" "$2" "$3" "$4"
+            pdf|PDF)
+                extract_pdf_page "$1" "$2" "$3" 
                 ;;
-            djvu)
-                extract_djvu_page "$1" "$2" "$3" "$4"
+            djvu|DJVU)
+                extract_djvu_page "$1" "$2" "$3"
                 ;;
-            tif*)
-                extract_tiff_page "$1" "$2" "$3" "$4"
+            tif|tiff|TIF|TIFF)
+                extract_tiff_page "$1" "$2" "$3"
                 ;;
-            jpg|jpeg|png|gif|gifv)
+            directory)
+                choose_from_directory "$1" "$3"
+                ;;
+            jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF|gifv|GIFV|bmp|BMP)
                 image="$document"
                 ;;
             *)
-                image="$document"
+                #image="$document"
+                error_and_exit "$filetype not supported."
                 ;;
         esac
     fi
@@ -554,6 +584,13 @@ function display_bar() {
 # Display help 
 ###########################################################################
 
+function clihelp() {
+    echo "Usage: $(basename $0) <file>"
+    echo "       $(basename $0) <directory>"
+    exit
+}
+
+
 function help() {
     clear
     tput cup 0 0
@@ -676,14 +713,14 @@ function crop() {
 
 function search() {
     case $filetype in
-        pdf)
+        pdf|PDF)
             search_pdf "$@" 
             ;;
-        djvu)
+        djvu|DJVU)
             search_djvu "$@"
             ;;
         *)
-            message="search not supported for this filetype"
+            message="Search not supported for this filetype"
             ;;
     esac
 }
@@ -941,13 +978,38 @@ function read_command() {
 function display_document() {
     document=$1
 
-    filepath="${document%/*}"
-    filename="${document##*/}"
-    if [[ "$filepath" == "$filename" ]]; then
-        filepath="."
+    filetype="${document##*.}"
+    fileroot="${document%.*}"
+
+    case "$filetype" in
+        cbr|CBR|rar|RAR)
+            if command -v unrar &> /dev/null; then
+                unrar -idq x "$document" ${tmp_dir}
+                cd ${tmp_dir}
+                document="."
+                fileroot="."
+            else
+                error_and_exit "Install unrar to view RAR and CBR files."
+            fi
+            ;;
+        cbz|CBZ|zip|ZIP)
+            unzip -q "$document" -d "${tmp_dir}"
+            cd ${tmp_dir}
+            document="."
+            fileroot="."
+            ;;
+         cbt|CBT|tar|TAR)
+            tar -xf "$document" -C "${tmp_dir}"
+            cd ${tmp_dir}
+            document="."
+            fileroot="."
+            ;;
+    esac
+
+    if [[ -d "$document" ]]; then
+        filetype="directory"
+        directory_contents="$(ls -m)"
     fi
-    filetype="${filename##*.}"
-    fileroot="${filename%.*}"
 
     get_total_number_of_pages "$document"
     clear
@@ -955,8 +1017,7 @@ function display_document() {
     do
         validate_page_number 
         get_pane_size 
-        extract_page "$filepath" "$fileroot" "$filetype" "$page_number" 
-    #    image="${tmp_dir}/${fileroot}${page_number}${cropped}.pdf"
+        extract_page "$fileroot" "$filetype" "$page_number" 
         tput cup 0 0 
         print_image "$image" 1 "$(base64 < "$image")" $width $height
         display_bar
@@ -967,60 +1028,60 @@ function display_document() {
 
 
 ###########################################################################
-# Select Document 
+# Select Document (feature removed)
 ###########################################################################
 
-function select_document() {
-    tput cup 0 0
-    ls -l
-    display_bar
-    read -e -p "Open: " new_file
-    if [[ -d $new_file ]]; then
-        cd "$new_file"
-        clear
-        select_document
-    elif [[ -r $new_file ]]; then
-        document=$new_file 
-    elif [[ -z $new_file ]]; then
-        clean_and_exit
-    else
-        message="No such file"
-        clear
-        select_document
-    fi
-}
-
-function display_banner() {
-    message=""
-    banner[1]=" _                                _  __ "
-    banner[2]="| |_ ___ _ __ _ __ ___  _ __   __| |/ _|"
-    banner[3]="| __/ _ \ '__| '_ \` _ \| '_ \ / _\` | |_ "
-    banner[4]="| ||  __/ |  | | | | | | |_) | (_| |  _|"
-    banner[5]=" \__\___|_|  |_| |_| |_| .__/ \__,_|_|  "
-    banner[6]="                       |_|              "
-    clear
-    start_row=$[($height/2) - 3]
-    start_col=$[($width/2) - (${#banner[1]}/2)]
-    if [[ ${#banner[1]} -gt $width ]]; then
-        start_col=0
-    fi
-    tput cup $start_row 0
-    for line in "${banner[@]}"; do
-        printf "%*s%s\n" $start_col " " "$line"
-    done
-    display_bar
-}
+# function select_document() {
+#     tput cup 0 0
+#     ls -l
+#     display_bar
+#     read -e -p "Open: " new_file
+#     if [[ -d $new_file ]]; then
+#         cd "$new_file"
+#         clear
+#         select_document
+#     elif [[ -r $new_file ]]; then
+#         document=$new_file 
+#     elif [[ -z $new_file ]]; then
+#         clean_and_exit
+#     else
+#         message="No such file"
+#         clear
+#         select_document
+#     fi
+# }
+#
+# function display_banner() {
+#     message=""
+#     banner[1]=" _                                _  __ "
+#     banner[2]="| |_ ___ _ __ _ __ ___  _ __   __| |/ _|"
+#     banner[3]="| __/ _ \ '__| '_ \` _ \| '_ \ / _\` | |_ "
+#     banner[4]="| ||  __/ |  | | | | | | |_) | (_| |  _|"
+#     banner[5]=" \__\___|_|  |_| |_| |_| .__/ \__,_|_|  "
+#     banner[6]="                       |_|              "
+#     clear
+#     start_row=$[($height/2) - 3]
+#     start_col=$[($width/2) - (${#banner[1]}/2)]
+#     if [[ ${#banner[1]} -gt $width ]]; then
+#         start_col=0
+#     fi
+#     tput cup $start_row 0
+#     for line in "${banner[@]}"; do
+#         printf "%*s%s\n" $start_col " " "$line"
+#     done
+#     display_bar
+# }
 
 ###########################################################################
 # Main Program
 ###########################################################################
 
+
 first_setup
 
-if [[ -z "$1" || ! -f "$1" ]]; then
-    get_pane_size
-    display_banner
-    select_document
+if [[ -z "$1" || ! -r "$1" ]]; then
+    clihelp
+    exit
 else
     document="$1"
 fi
