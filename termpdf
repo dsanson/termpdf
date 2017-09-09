@@ -1076,6 +1076,8 @@ function display_document() {
 # Main Program
 ###########################################################################
 
+trap 'error_and_exit "interrupted"' SIGINT 
+trap clean_and_exit TERM
 
 first_setup
 
