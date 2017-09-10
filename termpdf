@@ -1024,6 +1024,21 @@ function display_document() {
             document="."
             fileroot="."
             ;;
+         docx|DOCX|odt|ODT)
+             soffice="/Applications/LibreOffice.app/Contents/MacOS/soffice" 
+             if [[ ! -x "$soffice" ]]; then
+                 error_and_exit "Install LibreOffice to view DOCx files."
+             fi
+            $soffice --headless --convert-to pdf --outdir ${tmp_dir} "$document" & 
+            # if iTerm is in fullscreen, soffice will steal focus
+            sleep .5
+            osascript -e 'tell application "iTerm" to activate'
+            wait
+            cd "${tmp_dir}"
+            document="${document%.*}.pdf"
+            display_document "$document"
+#            error_and_exit "$document"
+            ;;
     esac
 
     if [[ -d "$document" ]]; then
