@@ -131,7 +131,7 @@ function get_total_number_of_pages() {
         tif|TIF|tiff|TIFF)
             if command -v tiffinfo &>/dev/null; then
                 total_pages=$(tiffinfo "$1" 2>/dev/null \
-                    | sed -n 's/ *PageName: Page //p' | tail -n 1)
+                    | grep -c "Page Number: ")
             else
                 error_and_exit "Install libtiff to view TIFF files."
             fi
