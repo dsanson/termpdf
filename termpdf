@@ -996,6 +996,7 @@ function read_command() {
 
 function display_document() {
     document=$1
+    
 
     filetype="${document##*.}"
     fileroot="${document%.*}"
@@ -1100,7 +1101,11 @@ trap clean_and_exit SIGTERM
 
 first_setup
 
-if [[ -z "$1" || ! -r "$1" ]]; then
+if [[ "$1" =~ ^http[s]?://.*$ ]]; then
+    cd "${tmp_dir}"
+    curl -L -O -J "$1"
+    document=$(ls -t | head -n 1)
+elif [[ -z "$1" || ! -r "$1" ]]; then
     clihelp
     exit
 else
