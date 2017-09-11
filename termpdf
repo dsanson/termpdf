@@ -116,7 +116,7 @@ function get_total_number_of_pages() {
         pdf|PDF)
             if command -v pdfinfo &>/dev/null; then
                 total_pages=$(pdfinfo "$1" 2>/dev/null \
-                    | grep "^Pages:" | awk '{print $2}') 
+                    | grep -a "^Pages:" | awk '{print $2}') 
             else
                 error_and_exit "Install poppler to view PDF files."
             fi
@@ -997,53 +997,52 @@ function read_command() {
 function display_document() {
     document=$1
     
-
-    filetype="${document##*.}"
-    fileroot="${document%.*}"
-
-    case "$filetype" in
-        cbr|CBR|rar|RAR)
-            if command -v unrar &> /dev/null; then
-                unrar -idq x "$document" ${tmp_dir}
-                cd ${tmp_dir}
-                document="."
-                fileroot="."
-            else
-                error_and_exit "Install unrar to view RAR and CBR files."
-            fi
-            ;;
-        cbz|CBZ|zip|ZIP)
-            unzip -q "$document" -d "${tmp_dir}"
-            cd ${tmp_dir}
-            document="."
-            fileroot="."
-            ;;
-         cbt|CBT|tar|TAR)
-            tar -xf "$document" -C "${tmp_dir}"
-            cd ${tmp_dir}
-            document="."
-            fileroot="."
-            ;;
-         docx|DOCX|odt|ODT)
-             soffice="/Applications/LibreOffice.app/Contents/MacOS/soffice" 
-             if [[ ! -x "$soffice" ]]; then
-                 error_and_exit "Install LibreOffice to view DOCx files."
-             fi
-            $soffice --headless --convert-to pdf --outdir ${tmp_dir} "$document" & 
-            # if iTerm is in fullscreen, soffice will steal focus
-            sleep .5
-            osascript -e 'tell application "iTerm" to activate'
-            wait
-            cd "${tmp_dir}"
-            document="${document%.*}.pdf"
-            display_document "$document"
-#            error_and_exit "$document"
-            ;;
-    esac
-
     if [[ -d "$document" ]]; then
         filetype="directory"
         directory_contents="$(ls -m)"
+        fileroot="$document"
+    else
+        filetype="${document##*.}"
+        fileroot="${document%.*}"
+
+        case "$filetype" in
+            cbr|CBR|rar|RAR)
+                if command -v unrar &> /dev/null; then
+                    unrar -idq x "$document" ${tmp_dir}
+                    cd ${tmp_dir}
+                    document="."
+                    fileroot="."
+                else
+                    error_and_exit "Install unrar to view RAR and CBR files."
+                fi
+                ;;
+            cbz|CBZ|zip|ZIP)
+                unzip -q "$document" -d "${tmp_dir}"
+                cd ${tmp_dir}
+                document="."
+                fileroot="."
+                ;;
+             cbt|CBT|tar|TAR)
+                tar -xf "$document" -C "${tmp_dir}"
+                cd ${tmp_dir}
+                document="."
+                fileroot="."
+                ;;
+             docx|DOCX|odt|ODT)
+                 soffice="/Applications/LibreOffice.app/Contents/MacOS/soffice" 
+                 if [[ ! -x "$soffice" ]]; then
+                     error_and_exit "Install LibreOffice to view DOCx files."
+                 fi
+                $soffice --headless --convert-to pdf --outdir ${tmp_dir} "$document" & 
+                # if iTerm is in fullscreen, soffice will steal focus
+                sleep .5
+                osascript -e 'tell application "iTerm" to activate'
+                wait
+                cd "${tmp_dir}"
+                document="${document%.*}.pdf"
+                display_document "$document"
+                ;;
+        esac
     fi
 
     get_total_number_of_pages "$document"
