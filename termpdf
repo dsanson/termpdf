@@ -213,6 +213,9 @@ function keys() {
         print="p"
         crop="c"
         notes="a" 
+        zoom_in="+"
+        zoom_out="-"
+        zoom_100="="
         help="h"
         quit="q"
 }
@@ -229,6 +232,7 @@ function keys() {
 
 function first_setup() {
     page_number=1
+    zoom=100
     cropped=""
     tmp_dir=$(mktemp -d)
     keys
@@ -320,6 +324,9 @@ function clean_and_exit() {
         done
     fi
     sed -i '.bak' "s|^$document_fullpath.*|$document_fullpath $doc_state|" "$HOME/.config/termpdf/cache"
+    if [[ -f "$HOME/.config/termpdf/exithook" ]]; then
+        source "$HOME/.config/termpdf/exithook"
+    fi
     clear
     exit
 }
@@ -331,6 +338,9 @@ function clean_and_exit() {
 function error_and_exit() {
     rm -rf "$tmp_dir"
     revert_background
+    if [[ -f "$HOME/.config/termpdf/exithook" ]]; then
+        source "$HOME/.config/termpdf/exithook"
+    fi
     >&2 echo "$(basename $0) error:"
     >&2 echo "    $1"
     exit 1
@@ -608,31 +618,35 @@ function clihelp() {
 function help() {
     clear
     tput cup 0 0
-cat <<EOH
-Keyboard commands
+    echo "Keyboard commands"
+    echo
+    column -t -s '|' <<EOH
 
-    enter/space: forward one page
-    [n]$back/$forward:      forward or back [n] pages
-    [n]$n_goto:        go to page [n]
-    $n_goto:           go to last page
-    $goto_m$goto_m:          go to first page
-    [n]$print:        print [n copies of] document
-    [n]$yank:        yank [n] pages forward and save as pdf
-    $yank$yank:          yank current page and save as pdf
-    $refresh:           refresh display
-    $reload:           reload document
-    $make:           remake document
-    $crop:           crop margins 
-    $notes:           annotate in split pane
-    $mark[r]:        store current page in register [r]
-    $reference[r]:        go to page stored in register [r]
-    ${goto_m}${reference}[r]:       go to to page in register [r]  
-    ${yank}${reference}[r]:       yank from current page to mark and save as pdf
-    $quit:           quit
-    $help:           view this help
+enter/space:                | forward one page
+[n]$back/$forward:          | forward or back [n] pages
+[n]$n_goto:                 | go to page [n]
+$n_goto:                    | go to last page
+$goto_m$goto_m:             | go to first page
+[n]$print:                  | print [n copies of] document
+[n]$yank:                   | yank [n] pages forward and save as pdf
+$yank$yank:                 | yank current page and save as pdf
+[n]$zoom_in:                | zoom in
+[n]$zoom_out:               | zoom out
+$zoom_100:                  | fit screen
+$crop:                      | crop margins 
+$mark[r]:                   | store current page in register [r]
+$reference[r]:              | go to page stored in register [r]
+${goto_m}${reference}[r]:   | go to to page in register [r] 
+${yank}${reference}[r]:     | yank from current page to mark and save as pdf
+$refresh:                   | refresh display
+$reload:                    | reload document
+$make:                      | remake document
+$notes:                     | annotate in split pane
+$quit:                      | quit
+$help:                      | view this help
 
 EOH
-
+    echo
     read -p "Press any key to return to document" -n 1 -s dummy
     clear
 }
@@ -840,6 +854,9 @@ function process_command_mode(){
         crop)
             crop
             ;;
+        zoom)
+            zoom="${command[1]}"
+            ;;
         help)
             help
             ;;
@@ -986,6 +1003,16 @@ function read_command() {
         "$make")
             remake
             ;;
+        "$zoom_in")
+            check_count
+            zoom=$[$zoom + 10 * $count]
+            ;;
+        "$zoom_out")
+            zoom=$[$zoom - 10 * count]
+            ;;
+        "$zoom_100")
+            zoom=100
+            ;;
     esac
 }
 
@@ -1044,7 +1071,6 @@ function display_document() {
                 ;;
         esac
     fi
-
     get_total_number_of_pages "$document"
     clear
     while true
@@ -1053,7 +1079,7 @@ function display_document() {
         get_pane_size 
         extract_page "$fileroot" "$filetype" "$page_number" 
         tput cup 0 0 
-        print_image "$image" 1 "$(base64 < "$image")" $width $height
+        print_image "$image" 1 "$(base64 < "$image")" $width $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
         display_bar
         count=""
         read_command
