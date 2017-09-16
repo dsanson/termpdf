@@ -324,6 +324,8 @@ function clean_and_exit() {
         done
     fi
     sed -i '.bak' "s|^$document_fullpath.*|$document_fullpath $doc_state|" "$HOME/.config/termpdf/cache"
+    # If there is anything else you want to do on exit, put
+    # it into the exithook file
     if [[ -f "$HOME/.config/termpdf/exithook" ]]; then
         source "$HOME/.config/termpdf/exithook"
     fi
@@ -1056,10 +1058,10 @@ function display_document() {
                 document="."
                 fileroot="."
                 ;;
-             docx|DOCX|odt|ODT)
+             docx|DOCX|odt|ODT|XLSX|xlsx|PPTX|pptx|ODS|ods|ODP|odp)
                  soffice="/Applications/LibreOffice.app/Contents/MacOS/soffice" 
                  if [[ ! -x "$soffice" ]]; then
-                     error_and_exit "Install LibreOffice to view DOCx files."
+                     error_and_exit "Install LibreOffice to view $filetype files."
                  fi
                 $soffice --headless --convert-to pdf --outdir ${tmp_dir} "$document" & 
                 # if iTerm is in fullscreen, soffice will steal focus
