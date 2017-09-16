@@ -476,11 +476,11 @@ search_djvu() {
 }
 
 search_pdf() {
-    allresults=$(pdfgrep -n -C $message_length "$@" "$document")
+    allresults=$(pdfgrep -n "$@" "$document" | cut -c 1-$message_length)
     readarray -t results <<< "$allresults"
     for (( i=0; i<${#results[@]}; i++ ))
     do
-        if [[ "${results[$i]%%:*}" -ge "$page_number" ]]
+        if [[ "${results[$i]%:*}" -ge "$page_number" ]]
         then
             search_index=$i
             break
@@ -749,7 +749,7 @@ function search() {
             search_djvu "$@"
             ;;
         *)
-            message="Search not supported for this filetype"
+            message="Search not supported for this filetype."
             ;;
     esac
 }
