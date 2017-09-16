@@ -2,24 +2,23 @@ termpdf
 =======
 
 `termpdf` is a barebones inline graphical PDF (and DJVU and TIFF and CBR and
-CBZ and other images) viewer for
-iTerm 2.9 or later on OS X. It is a ridiculous hack---a bash script wrapped around
-some special terminal escape codes. But it works well enough for me to be
-useful.
+CBZ and JPG and PNG and GIF and BMP) viewer for iTerm 2.9 or later on OS X. It
+is a ridiculous hack---a bash script wrapped around some special terminal
+escape codes. But it works well enough for me to be useful.
 
 ![screenshot]
 
 Features
 ========
 
-Each page of the PDF is sized to fit within your terminal window (or tmux
-pane). Other features include:
-
--   basic "vim-style" navigation
--   cropping of margins (using `k2pdfopt`)
--   extracting (yanking) pages and saving them to a new pdf
--   printing
--   opening a text file for annotation in a split pane in tmux
+-   displays images sized to fit your terminal window (or tmux pane)
+-   navigate multipage documents using vim-style commands
+-   yank selected pages to a new pdf file
+-   print selected pages
+-   automatically crop margins (using `k2pdfopt`)
+-   saves bookmarks and opens document to last viewed page
+-   control running instances remotely using the included `tpdfc` script
+-   open a text file for annotation in a split pane in tmux
 
 Requirements
 ============
@@ -54,8 +53,8 @@ are provided by [Poppler]:
 
     $ brew install poppler
 
-DJVULibre and Ghostscript
--------------------------
+DJVULibre 
+---------
 
 The script uses `ddjvu` to extract pages from DJVU documents and
 convert them to PDF, and `djvudump` to figure out how many pages a DJVU
@@ -100,6 +99,13 @@ for marks.
 
     $ brew install bash
 
+LibreOffice
+-----------
+
+I've added basic support for viewing Microsoft Office (docx, xlsx, pptx) and
+LibreOffice (odt, ods, odp) files. The script converts them to PDF using
+LibreOffice, and then displays the resulting PDF. For this to work, you'll
+need to have a copy of LibreOffice installed in your `/Applications` folder.
 
 Installation
 ============
@@ -141,6 +147,9 @@ While viewing a file, the default key commands are:
     '[r]:        go to page stored in register [r]
     g'[r]:       go to to page in register [r]
     y'[r]:       yank from current page to mark and save as pdf
+    +:           zoom in (this is kind of janky)
+    -:           zoom out (also janky)
+    =:           reset zoom to 100%
     q:           quit
     h:           view this help
 
@@ -151,6 +160,7 @@ There is also rudimentary undocumented support for `:` style commands, e.g.,
 
     :first                                go to first page
     :last                                 go to last page
+    :goto 20                              go to page 20
     :print <copies> <page-range>
     :gui                                  open the document in your default
                                              PDF viewer (e.g., Preview.app)
@@ -162,7 +172,7 @@ doesn't support customizable autocompletion when called within scripts.
 
 # Controlling `termpdf` using `tpdfc`
 
-You can issue commands to a running instance of `termpdf` using the command
+You can issue `:` style commands to a running instance of `termpdf` using the command
 `tpdfc`. For example,
 
     $ tpdfc goto 5
@@ -173,15 +183,58 @@ can specify the instance you wish to control either by PID or just by number:
     $ tpdfc -n 2 goto 5
     $ tpdfc -p <PID> goto 5
 
+To list all available instances,
+
+    $ tpdfc -l
+
+# Configuration files
+
+You can put any commands you want into `$HOME/.config/termpdf/config`, and
+they will be run during the setup process. This allows you, among other
+things, to override the key mappings and tweak the print settings.
+
+I also use this to help address the problem with displaying transparent PDFs
+when using a dark theme (see Issue #10), by including the following in my
+config file:
+
+```bash
+# function for switching iterm themes/profiles
+switch_iterm_theme () {
+        [[ -n $TMUX ]] && printf "\033Ptmux;\033"
+        echo -e "\033]50;SetProfile=$1\a" && export ITERM_PROFILE="$1"
+        [[ -n $TMUX ]] && printf "\033\\"
+}
+# save the current profile
+current_profile=$(osascript -e 'tell application "iTerm" to get profile name of current session of current window')
+# switch to light theme for transparent PDFs
+switch_iterm_theme "Gruvbox Light" && test $TMUX && tmux set -g status-bg white 2> /dev/null && tmux setw -g window-status-attr default
+```
+
+You can also put commands in `$HOME/.config/termpdf/exithook`, which will be
+sourced before the script exits. I use this to revert to switch back to the
+profile I was using before I launched `termpdf`:
+
+```bash
+switch_iterm_theme "$current_profile"
+```
+
+If you use `tmux`, this solution to issue #10 is far from perfect: it will
+change the theme for your entire session, not just the current pane. I've
+mostly stopped using `tmux` in favor of
+[chunkwm](https://github.com/koekeishiya/chunkwm), so this is no longer a big
+issue for me. But it might be for you.
+
 # `termdoc`
 
-`termdoc` is a wrapper script for viewing more filetypes using `termpdf`, by
-converting them as needed to formats supported by `termpdf`.
+`termdoc` was a wrapper script for viewing more filetypes using `termpdf`, by
+converting them as needed to formats supported by `termpdf`. But I've added
+this feature into `termpdf` itself, so this is obsolete.
+
 
 In it's current iteration, it uses [LibreOffice](https://www.libreoffice.org/) if it can find it in your
 `/Applications` or `~/Applications` folder. This works well for LibreOffice's
 native ODF formats (like ODT), and reasonably well for Microsoft office
-formats (Word, Excel, Powerpoint) and LibreOffice formats (ODT). 
+formats (Word, Excel, Powerpoint).
 
 If you don't have LibreOffice installed, `termdoc` can use the free
 online doc2pdf.net conversion service. Obviously this will only work online.
@@ -193,20 +246,15 @@ obvious reasons.
 Various events, like resizing panes, can cause tmux to clobber the
 displayed page. Use the 'refresh display' command (`r`) to fix this.
 
-The make command right now only works if you have a Makefile in the same
+The make command only works if you have a Makefile in the same
 directory as the PDF. It would be nice to support a configurable make command.
 
-There is no robust error checking. This is just a bash script.
+There is no robust error checking. This is just a bash script. So occasionally
+it will just crash or fart or do something unexpected.
 
 # TODO
 
 -   better handling of pdfs with transparent backgrounds. See Issue #10.
--   implement search using `pdfgrep`. This was in an earlier version of the
-    script, but was removed because it was complicated. I'm not sure what the
-    best minimal implementation of search is. One problem is that there is no
-    easy way to indicate *where* the search term was found on a page, since
-    the page is just an image and we don't have any reasonable way to
-    highlight matches.
 -   rewrite in real language (using ncurses?). It would be really cool to have
     a PDF viewer for vim+tmux with the power of emacs'
     [pdf-tools](https://github.com/politza/pdf-tools). But that's not going to
@@ -237,6 +285,5 @@ workflow.
 -   [termimg](https://github.com/frnsys/termimg): uses `w3mimgdisplay`.
 
 
-  [the beta test release or a nightly build]: https://iterm2.com/downloads.html
   [Poppler]: http://poppler.freedesktop.org/
   [screenshot]: screenshot.png
