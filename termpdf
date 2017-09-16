@@ -455,7 +455,6 @@ function extract_page() {
                 image="$document"
                 ;;
             *)
-                #image="$document"
                 error_and_exit "$filetype not supported."
                 ;;
         esac
@@ -1041,7 +1040,7 @@ function display_document() {
                     unrar -idq x "$document" ${tmp_dir}
                     cd ${tmp_dir}
                     document="."
-                    fileroot="."
+                    display_document $document
                 else
                     error_and_exit "Install unrar to view RAR and CBR files."
                 fi
@@ -1051,12 +1050,14 @@ function display_document() {
                 cd ${tmp_dir}
                 document="."
                 fileroot="."
+                display_document $document
                 ;;
              cbt|CBT|tar|TAR)
                 tar -xf "$document" -C "${tmp_dir}"
                 cd ${tmp_dir}
                 document="."
                 fileroot="."
+                display_document $document
                 ;;
              docx|DOCX|odt|ODT|XLSX|xlsx|PPTX|pptx|ODS|ods|ODP|odp)
                  soffice="/Applications/LibreOffice.app/Contents/MacOS/soffice" 
