@@ -263,11 +263,11 @@ function second_setup() {
     # find last open page and marks.
     
     touch "$HOME/.config/termpdf/cache" 
-    saved_data=$(grep "$document_fullpath" "$HOME/.config/termpdf/cache" | cut -d' ' -f 2-)
+    saved_data=$(grep "$document_fullpath" "$HOME/.config/termpdf/cache" | cut -d',' -f 2-)
     if [[ ! "$saved_data" == "" ]]; then
-        page_number=$(echo "$saved_data" | awk '{print $1}')
+        page_number=$(echo "$saved_data" | awk -F',' '{print $1}')
         if [[ -n $enable_marks ]]; then
-            saved_marks="$(echo "$saved_data" | cut -d' ' -f 2-)"
+            saved_marks="$(echo "$saved_data" | cut -d',' -f 2-)"
             for i in $saved_marks; do
                 reg="${i%%:*}"
                 pag="${i##*:}"
@@ -275,7 +275,7 @@ function second_setup() {
             done
         fi 
     else 
-        echo "$document_fullpath" "1" >> "$HOME/.config/termpdf/cache"
+        echo "$document_fullpath,1" >> "$HOME/.config/termpdf/cache"
     fi
 
     # set a trap to allow other scripts to send commands
@@ -327,10 +327,10 @@ function clean_and_exit() {
     doc_state="$page_number"
     if [[ -n $enable_marks ]]; then
         for reg in ${!marks[@]}; do
-            doc_state="$doc_state $reg:${marks[$reg]}"
+            doc_state="$doc_state,$reg:${marks[$reg]}"
         done
     fi
-    sed -i '.bak' "s|^$document_fullpath.*|$document_fullpath $doc_state|" "$HOME/.config/termpdf/cache"
+    sed -i '.bak' "s|^$document_fullpath.*|$document_fullpath,$doc_state|" "$HOME/.config/termpdf/cache"
     # If there is anything else you want to do on exit, put
     # it into the exithook file
     if [[ -f "$HOME/.config/termpdf/exithook" ]]; then
