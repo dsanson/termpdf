@@ -218,13 +218,9 @@ function keys() {
         zoom_100="="
         help="h"
         quit="q"
+        user1="u" # edit or override in config to implement user command
+        user1_blurb="user definable function"
 }
-
-###########################################################################
-# Edit this is if you prefer different print settings 
-###########################################################################
-
-
 
 ###########################################################################
 # Do all the little things we need to do when first started
@@ -287,7 +283,9 @@ function second_setup() {
     trap external_command SIGUSR1
 }
 
+###########################################################################
 # function for processing external commands
+###########################################################################
 
 function external_command(){
     if [[ -r "$signal_file" ]]; then
@@ -297,6 +295,15 @@ function external_command(){
     display_document "$document"
 }
 
+
+###########################################################################
+# Function to test if functions exist
+###########################################################################
+
+fn_exists()
+{
+    type $1 | grep -q 'shell function'
+}
 
 ###########################################################################
 # "Reload" the document by deleting all the cached pages
@@ -645,6 +652,7 @@ $make:                      | remake document
 $notes:                     | annotate in split pane
 $quit:                      | quit
 $help:                      | view this help
+$user1:                     | $user1_blurb
 
 EOH
     echo
@@ -764,6 +772,12 @@ function print() {
     fi
 }
 
+function user1() {
+   # define function user1 in the config
+   message="user1 function not defined" 
+}
+
+
 ###########################################################################
 # Command Mode
 ###########################################################################
@@ -865,6 +879,9 @@ function process_command_mode(){
         col)
             cropped="_cols" 
             ;;
+        user1)
+            user1
+            ;;
     esac
 }
 
@@ -874,7 +891,7 @@ function process_command_mode(){
 ###########################################################################
 
 function read_command() {
-    read -n 1 command
+    read -n 1 -r command
     case "$command" in
         $'\e')
             ;;
@@ -1014,6 +1031,10 @@ function read_command() {
             ;;
         "$zoom_100")
             zoom=100
+            ;;
+        "$user1")
+            check_count
+            user1 $count
             ;;
     esac
 }
