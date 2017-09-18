@@ -469,11 +469,9 @@ function extract_page() {
                 ;;
             directory)
                 choose_from_directory "$1" "$3"
-                cropped="" # cropping not implemented
                 ;;
             jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF|gifv|GIFV|bmp|BMP)
                 image="$document"
-                cropped="" # cropping not implemented
                 ;;
             *)
                 error_and_exit "$filetype not supported."
