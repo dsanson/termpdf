@@ -241,7 +241,7 @@ function second_setup() {
     print_command="lp"
     print_options="-o sides=two-sided-long-edge"
     make_command=""
-   
+    crop_aggression=1
     document_fullpath=$(cd $(dirname "$document") && pwd -P)/$(basename "$document")
     document_containing_folder="${document_fullpath%/*}"
     document_name="${document_fullpath##*/}"
@@ -267,7 +267,7 @@ function second_setup() {
     if [[ ! "$saved_data" == "" ]]; then
         page_number=$(echo "$saved_data" | awk -F',' '{print $1}')
         if [[ -n $enable_marks ]]; then
-            saved_marks="$(echo "$saved_data" | cut -d',' -f 2-)"
+            saved_marks="$(echo "$saved_data" | cut -d ',' -f 2- | tr ',' ' ')"
             for i in $saved_marks; do
                 reg="${i%%:*}"
                 pag="${i##*:}"
@@ -327,7 +327,7 @@ function clean_and_exit() {
     doc_state="$page_number"
     if [[ -n $enable_marks ]]; then
         for reg in ${!marks[@]}; do
-            doc_state="$doc_state,$reg:${marks[$reg]}"
+            doc_state="${doc_state},${reg}:${marks[$reg]}"
         done
     fi
     sed -i '.bak' "s|^$document_fullpath.*|$document_fullpath,$doc_state|" "$HOME/.config/termpdf/cache"
@@ -388,6 +388,37 @@ function list_marks() {
     fi
 }
 
+
+###########################################################################
+# A function for splitting the pdf at each mark
+#    e.g., if pages 2 and 5 are marked, then create:
+#          one pdf consisting of just page 1
+#          one pdf consisting of pages 2 through 4
+#          one pdf consisting of page 5 to the end
+###########################################################################
+
+function split_at_marks() {
+    if [[ -n $enable_marks ]]; then
+        for reg in ${!marks[@]}; do
+            if [[ ${marks[$reg]} -ne 1 ]]; then
+                splits="$splits ${marks[$reg]}"
+            fi
+        done
+        splits="$splits $[$total_pages + 1]"
+        splits="$(echo "$splits" | xargs -n1 | sort -un | xargs)"
+        fp=1
+        for num in $splits; do
+            lp=$[$num - 1]
+            echo "Yanking $fp to $lp"
+            export_pdf $fp $lp
+            fp=$num
+        done
+    else
+        message="marks not enabled"
+    fi
+}
+
+
 ###########################################################################
 # Use k2pdfopt <https://github.com/JohannesBuchner/k2pdfopt> to crop 
 # excess whitespace from pdfs.
@@ -415,6 +446,22 @@ function crop_pdf() {
     fi
     if [[ "$cropped" == "_cols" ]]; then
         two_columns "$1" "$2"
+    fi
+}
+
+function crop_image() {
+    if [[ "$cropped" == "cropped" ]]; then
+        convert -trim -fuzz "${crop_aggression}%" "$image" "${tmp_dir}/${1}_cropped${2}"
+        image="${tmp_dir}/${1}_cropped${2}"
+    fi
+}
+
+function crop_image_in_directory() {
+    if [[ "$cropped" == "cropped" ]]; then
+        image_ext=${image##*.}
+        image_root=${image%%.$image_ext}
+        convert -trim -fuzz "${crop_aggression}%" "$image" "${tmp_dir}/${image_root}_cropped.${image_ext}"
+        image="${tmp_dir}/${image_root}_cropped.${image_ext}"
     fi
 }
 
@@ -762,8 +809,16 @@ function crop() {
             fi
             reload
             ;;
+        jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF|gifv|GIFV|bmp|BMP)
+            if [[ "$cropped" == "" ]]; then
+                crop_aggression="$1"
+                cropped="cropped"
+            else
+                cropped=""
+            fi
+            ;;
         *)
-            cropped="" # cropping not implemented
+            cropped="" # crop not implemented
             ;;
     esac
 }
@@ -859,17 +914,17 @@ function process_command_mode(){
             ;;
         e|edit|o|open)
             # open another document instead of this one
-            if [[ "${command[1]}" == "" ]]; then
-                clear
-                select_document
-            elif [[ -d "${command[1]}" ]]; then
-                cd "${command[1]}"
-                clear
-                select_document
-            elif [[ -f "${command[1]}" ]]; then
-                display_document ${command[1]}
+            unset command[0]
+            if [[ "${command[*]}" == "" ]]; then
+                message="Usage: open <document>"
+                # select_document
+            elif [[ -d "${command[*]}" ]]; then
+                display_document "${command[*]}"
+            elif [[ -f "${command[*]}" ]]; then
+                display_document "${command[*]}"
             else
-                message="${command[1]} does not exist"
+                display_document "${command[*]}"
+                #message="${command[*]} does not exist"
             fi
             ;;
         gui)
@@ -883,11 +938,14 @@ function process_command_mode(){
         marks)
             list_marks
             ;;
+        split)
+            split_at_marks
+            ;;
         notes)
             notes
             ;;
         crop)
-            crop
+            crop 1
             ;;
         zoom)
             zoom="${command[1]}"
@@ -1004,7 +1062,8 @@ function read_command() {
             esac
             ;;
         "$crop")
-            crop
+            check_count
+            crop $count
             ;;
         "$notes")
             notes
@@ -1064,7 +1123,9 @@ function read_command() {
 ###########################################################################
 
 function display_document() {
-    document=$1
+    document="$1"
+    document="${document%\"}"
+    document="${document#\"}"
     
     if [[ -d "$document" ]]; then
         filetype="directory"
