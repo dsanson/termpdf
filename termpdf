@@ -1237,10 +1237,20 @@ function display_document() {
 #     display_bar
 # }
 
+function resize() {
+        get_pane_size 
+        extract_page "$fileroot" "$filetype" "$page_number" 
+        tput cup 0 0 
+        print_image "$image" 1 "$(base64 < "$image")" $width $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
+        display_bar
+}
+
+
 ###########################################################################
 # Main Program
 ###########################################################################
 
+trap 'resize' SIGWINCH
 trap 'error_and_exit "interrupted"' SIGINT 
 trap clean_and_exit SIGTERM
 
