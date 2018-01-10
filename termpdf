@@ -1225,50 +1225,6 @@ function display_document() {
 }
 
 
-###########################################################################
-# Select Document (feature removed)
-###########################################################################
-
-# function select_document() {
-#     tput cup 0 0
-#     ls -l
-#     display_bar
-#     read -e -p "Open: " new_file
-#     if [[ -d $new_file ]]; then
-#         cd "$new_file"
-#         clear
-#         select_document
-#     elif [[ -r $new_file ]]; then
-#         document=$new_file 
-#     elif [[ -z $new_file ]]; then
-#         clean_and_exit
-#     else
-#         message="No such file"
-#         clear
-#         select_document
-#     fi
-# }
-#
-# function display_banner() {
-#     message=""
-#     banner[1]=" _                                _  __ "
-#     banner[2]="| |_ ___ _ __ _ __ ___  _ __   __| |/ _|"
-#     banner[3]="| __/ _ \ '__| '_ \` _ \| '_ \ / _\` | |_ "
-#     banner[4]="| ||  __/ |  | | | | | | |_) | (_| |  _|"
-#     banner[5]=" \__\___|_|  |_| |_| |_| .__/ \__,_|_|  "
-#     banner[6]="                       |_|              "
-#     clear
-#     start_row=$[($height/2) - 3]
-#     start_col=$[($width/2) - (${#banner[1]}/2)]
-#     if [[ ${#banner[1]} -gt $width ]]; then
-#         start_col=0
-#     fi
-#     tput cup $start_row 0
-#     for line in "${banner[@]}"; do
-#         printf "%*s%s\n" $start_col " " "$line"
-#     done
-#     display_bar
-# }
 
 function resize() {
         get_pane_size 
