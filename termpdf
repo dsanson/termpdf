@@ -74,7 +74,7 @@ function print_image() {
 }
 
 function print_image_kitty() {
-   kitty icat --place "${4}x${5}@0x0" "$1"
+   $kitty icat --place "${4}x${5}@0x0" "$1"
 }
 
 
@@ -243,7 +243,8 @@ function first_setup() {
 function second_setup() {
 
     # check for kitty image support
-    if kitty icat --detect-support; then
+   
+    if $kitty icat --detect-support; then
         use_kitty=true
     else
         use_kitty=false
@@ -441,26 +442,24 @@ function split_at_marks() {
 # TODO: add support for cropping TIFs using convert
 ###########################################################################
 
-function crop_margins() {
-     if [[ ! -f "${tmp_dir}/${1}${2}_k2opt.pdf" ]]; then
-         k2pdfopt -ocr- -ui- -x -mode tm "${tmp_dir}/${1}${2}.pdf" > /dev/null
-     fi
-}
-
-function two_columns() {
-     if [[ ! -f "${tmp_dir}/${1}${2}_cols.pdf" ]]; then
-         k2pdfopt -ocr- -ui- -x -col 2 -o '%s_cols.pdf' "${tmp_dir}/${1}${2}.pdf" > /dev/null
-     fi
-}
-
-function crop_pdf() {
-    if [[ "$cropped" == "_k2opt" ]]; then
-        crop_margins "$1" "$2"
-    fi
-    if [[ "$cropped" == "_cols" ]]; then
-        two_columns "$1" "$2"
-    fi
-}
+# function crop_margins() {
+#      if [[ ! -f "${tmp_dir}/${1}${2}_k2opt.pdf" ]]; then
+#          k2pdfopt -ocr- -ui- -x -mode tm "${tmp_dir}/${1}${2}.pdf" > /dev/null
+#      fi
+# }
+# function two_columns() {
+#      if [[ ! -f "${tmp_dir}/${1}${2}_cols.pdf" ]]; then
+#          k2pdfopt -ocr- -ui- -x -col 2 -o '%s_cols.pdf' "${tmp_dir}/${1}${2}.pdf" > /dev/null
+#      fi
+# }
+# function crop_pdf() {
+#     if [[ "$cropped" == "_k2opt" ]]; then
+#         crop_margins "$1" "$2"
+#     fi
+#     if [[ "$cropped" == "_cols" ]]; then
+#         two_columns "$1" "$2"
+#     fi
+# }
 
 function crop_image() {
     if [[ "$cropped" == "cropped" ]]; then
@@ -493,12 +492,12 @@ function extract_pdf_page_to_png() {
     image="${tmp_dir}/${1}${3}.png"
 }
 
-function extract_pdf_page() {
-    if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
-       pdfseparate -f "$3" -l "$3" "${1}.${2}" "${tmp_dir}/${1}%d.pdf"
-    fi
-    image="${tmp_dir}/${1}${3}.pdf"
-}
+# function extract_pdf_page() {
+#     if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
+#        pdfseparate -f "$3" -l "$3" "${1}.${2}" "${tmp_dir}/${1}%d.pdf"
+#     fi
+#     image="${tmp_dir}/${1}${3}.pdf"
+# }
 
 function extract_djvu_page_to_pbm() {
     if [[ ! -f "${tmp_dir}/${1}${3}.pbm" ]]; then
@@ -507,12 +506,12 @@ function extract_djvu_page_to_pbm() {
     image="${tmp_dir}/${1}${3}.pbm"
 }
 
-function extract_djvu_page() {
-    if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
-       ddjvu -format=pdf -page=$3 "${1}.${2}" "${tmp_dir}/${1}${3}.pdf"
-    fi
-    image="${tmp_dir}/${1}${3}.pdf"
-}
+# function extract_djvu_page() {
+#     if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
+#        ddjvu -format=pdf -page=$3 "${1}.${2}" "${tmp_dir}/${1}${3}.pdf"
+#     fi
+#     image="${tmp_dir}/${1}${3}.pdf"
+# }
 
 function extract_tiff_page() {
     if [[ ! -f "${tmp_dir}/${1}${3}.tiff" ]]; then
@@ -828,9 +827,8 @@ function gui() {
 
 function crop() {
     case $filetype in
-        PDF|pdf|tif|TIF|DJVU|djvu)
+        PDF|pdf|tif|TIF|tiff|TIFF|DJVU|djvu)
             if [[ "$cropped" == "" ]]; then
-                # cropped="_k2opt"
                 cropped="cropped"
             else
                 cropped=""
@@ -980,9 +978,6 @@ function process_command_mode(){
             ;;
         help)
             help
-            ;;
-        col)
-            cropped="_cols" 
             ;;
         user1)
             user1
