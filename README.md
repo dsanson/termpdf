@@ -201,7 +201,7 @@ this feature into `termpdf` itself, so this is obsolete.
 
 -   Kitty's `kitty icat` command doesn't provide a way to scale small images
     to a larger size to fill the screen (but it does scale large images to fit
-    the screen).
+    the screen). FIXED: kovidgoyal/kitty@03702772d3e45a58d7d4b6c7252dc3b6caecd3ae
 
 -   Various events, like resizing panes, can cause tmux to clobber the
 displayed page. Use the 'refresh display' command (`r`) to fix this.
