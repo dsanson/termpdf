@@ -243,11 +243,11 @@ function first_setup() {
 function second_setup() {
 
     # check for kitty image support
-   
+    kitty="kitty" 
     if $kitty icat --detect-support; then
-        protocol=kitty
+        protocol="kitty"
     else
-        protocol=iterm
+        protocol="iterm"
     fi
 
     # override these settings by creating a config file
