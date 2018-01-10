@@ -73,6 +73,10 @@ function print_image() {
     printf '\n'
 }
 
+function print_image_kitty() {
+   kitty icat --place "${4}x${5}@0x0" "$1"
+}
+
 
 ###########################################################################
 # A function for getting the dimensions of the current terminal
@@ -81,9 +85,11 @@ function print_image() {
 
 function get_pane_size() {
     width=$(tput cols)
-    height=$(stty size | awk '{print $1}')
-    width=$(expr $width - 1)
-    height=$(expr $height - 1 )
+    height=$(tput lines)
+    if [[ "$use_kitty" != true ]]; then
+        width=$(expr $width - 1)
+        height=$(expr $height - 1 )
+    fi
 }
 
 
@@ -235,6 +241,13 @@ function first_setup() {
 }
 
 function second_setup() {
+
+    # check for kitty image support
+    if kitty icat --detect-support; then
+        use_kitty=true
+    else
+        use_kitty=false
+    fi
 
     # override these settings by creating a config file
     guiviewer="Preview.app" 
@@ -451,8 +464,8 @@ function crop_pdf() {
 
 function crop_image() {
     if [[ "$cropped" == "cropped" ]]; then
-        convert -trim -fuzz "${crop_aggression}%" "$image" "${tmp_dir}/${1}_cropped${2}"
-        image="${tmp_dir}/${1}_cropped${2}"
+        convert -trim -fuzz "${crop_aggression}%" "$image" "${tmp_dir}/${1}cropped${2}"
+        image="${tmp_dir}/${1}cropped${2}"
     fi
 }
 
@@ -460,8 +473,8 @@ function crop_image_in_directory() {
     if [[ "$cropped" == "cropped" ]]; then
         image_ext=${image##*.}
         image_root=${image%%.$image_ext}
-        convert -trim -fuzz "${crop_aggression}%" "$image" "${tmp_dir}/${image_root}_cropped.${image_ext}"
-        image="${tmp_dir}/${image_root}_cropped.${image_ext}"
+        convert -trim -fuzz "${crop_aggression}%" "$image" "${tmp_dir}/${image_root}cropped.${image_ext}"
+        image="${tmp_dir}/${image_root}cropped.${image_ext}"
     fi
 }
 
@@ -472,26 +485,40 @@ function crop_image_in_directory() {
 #     extract_pdf_page path root extension page 
 ###########################################################################
 
+
+function extract_pdf_page_to_png() {
+    if [[ ! -f "${tmp_dir}/${1}${3}.png" ]]; then
+       pdftocairo -f "$3" -l "$3" -png -singlefile -r 200 "${1}.${2}" "${tmp_dir}/${1}${3}"
+    fi
+    image="${tmp_dir}/${1}${3}.png"
+}
+
 function extract_pdf_page() {
     if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
        pdfseparate -f "$3" -l "$3" "${1}.${2}" "${tmp_dir}/${1}%d.pdf"
     fi
-    image="${tmp_dir}/${1}${3}${cropped}.pdf"
+    image="${tmp_dir}/${1}${3}.pdf"
+}
+
+function extract_djvu_page_to_pbm() {
+    if [[ ! -f "${tmp_dir}/${1}${3}.pbm" ]]; then
+       ddjvu -format=pbm -page=$3 "${1}.${2}" "${tmp_dir}/${1}${3}.pbm"
+    fi
+    image="${tmp_dir}/${1}${3}.pbm"
 }
 
 function extract_djvu_page() {
     if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
        ddjvu -format=pdf -page=$3 "${1}.${2}" "${tmp_dir}/${1}${3}.pdf"
     fi
-    image="${tmp_dir}/${1}${3}${cropped}.pdf"
+    image="${tmp_dir}/${1}${3}.pdf"
 }
 
 function extract_tiff_page() {
-    if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
-        tiffutil -extract "$[$3 - 1]" "${1}.${2}" -o "${tmp_dir}/out.tiff" 2>/dev/null 
-        tiff2pdf -o "${tmp_dir}/${1}${3}.pdf" "${tmp_dir}/out.tiff" 2>/dev/null
+    if [[ ! -f "${tmp_dir}/${1}${3}.tiff" ]]; then
+        tiffutil -extract "$[$3 - 1]" "${1}.${2}" -o "${tmp_dir}/${1}${3}.tiff" 2>/dev/null 
     fi
-    image="${tmp_dir}/${1}${3}${cropped}.pdf"
+    image="${tmp_dir}/${1}${3}.tiff"
 }
 
 function choose_from_directory() {
@@ -508,16 +535,16 @@ function choose_from_directory() {
 function extract_page() {
     case $filetype in
         pdf|PDF)
-            extract_pdf_page "$1" "$2" "$3" 
-            crop_pdf "$1" "$3"
+            extract_pdf_page_to_png "$1" "$2" "$3" 
+            crop_image "$1" "png"
             ;;
         djvu|DJVU)
-            extract_djvu_page "$1" "$2" "$3"
-            crop_pdf "$1" "$3"
+            extract_djvu_page_to_pbm "$1" "$2" "$3"
+            crop_image "$1" "pbm"
             ;;
         tif|tiff|TIF|TIFF)
             extract_tiff_page "$1" "$2" "$3"
-            crop_pdf "$1" "$3"
+            crop_image "$1" "tiff"
             ;;
         directory)
             choose_from_directory "$1" "$3"
@@ -803,7 +830,8 @@ function crop() {
     case $filetype in
         PDF|pdf|tif|TIF|DJVU|djvu)
             if [[ "$cropped" == "" ]]; then
-                cropped="_k2opt"
+                # cropped="_k2opt"
+                cropped="cropped"
             else
                 cropped=""
             fi
@@ -1183,8 +1211,13 @@ function display_document() {
         validate_page_number 
         get_pane_size 
         extract_page "$fileroot" "$filetype" "$page_number" 
-        tput cup 0 0 
-        print_image "$image" 1 "$(base64 < "$image")" $width $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
+        if [[ "$use_kitty" == true ]]; then
+            #tput cup 0 0
+            print_image_kitty "$image" 1 1 "$width" $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
+        else
+            tput cup 0 0 
+            print_image "$image" 1 "$(base64 < "$image")" $width $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
+        fi
         display_bar
         count=""
         read_command
@@ -1268,7 +1301,6 @@ else
 fi
 
 second_setup
-
 display_document "$document"
 
 
