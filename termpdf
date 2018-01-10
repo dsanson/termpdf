@@ -1150,6 +1150,19 @@ function read_command() {
 # Display Document
 ###########################################################################
 
+function extract_and_display_page() {
+    get_pane_size 
+    extract_page "$fileroot" "$filetype" "$page_number" 
+    if [[ "$use_kitty" == true ]]; then
+        #tput cup 0 0
+        print_image_kitty "$image" 1 1 "$width" $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
+    else
+        tput cup 0 0 
+        print_image "$image" 1 "$(base64 < "$image")" $width $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
+    fi
+    display_bar
+}
+
 function display_document() {
     document="$1"
     document="${document%\"}"
@@ -1209,29 +1222,14 @@ function display_document() {
     while true
     do
         validate_page_number 
-        get_pane_size 
-        extract_page "$fileroot" "$filetype" "$page_number" 
-        if [[ "$use_kitty" == true ]]; then
-            #tput cup 0 0
-            print_image_kitty "$image" 1 1 "$width" $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
-        else
-            tput cup 0 0 
-            print_image "$image" 1 "$(base64 < "$image")" $width $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
-        fi
-        display_bar
+        extract_and_display_page
         count=""
         read_command
     done
 }
 
-
-
 function resize() {
-        get_pane_size 
-        extract_page "$fileroot" "$filetype" "$page_number" 
-        tput cup 0 0 
-        print_image "$image" 1 "$(base64 < "$image")" $width $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
-        display_bar
+    extract_and_display_page
 }
 
 
