@@ -51,7 +51,7 @@ function print_st() {
 #   height: height to render image (in characters)
 ###########################################################################
 
-function print_image() {
+function print_image_iterm() {
     print_osc
     printf ']1337;File='
     if [[ -n "$1" ]]; then
@@ -86,7 +86,7 @@ function print_image_kitty() {
 function get_pane_size() {
     width=$(tput cols)
     height=$(tput lines)
-    if [[ "$use_kitty" != true ]]; then
+    if [[ "$protocol" != kitty ]]; then
         width=$(expr $width - 1)
         height=$(expr $height - 1 )
     fi
@@ -245,9 +245,9 @@ function second_setup() {
     # check for kitty image support
    
     if $kitty icat --detect-support; then
-        use_kitty=true
+        protocol=kitty
     else
-        use_kitty=false
+        protocol=iterm
     fi
 
     # override these settings by creating a config file
@@ -1148,12 +1148,14 @@ function read_command() {
 function extract_and_display_page() {
     get_pane_size 
     extract_page "$fileroot" "$filetype" "$page_number" 
-    if [[ "$use_kitty" == true ]]; then
-        #tput cup 0 0
+    if [[ "$protocol" == "kitty" ]]; then
         print_image_kitty "$image" 1 1 "$width" $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
+    elif [[ "$protocol" == "sixel" ]]; then
+        # img2sixel wants dimensions in pixels. Ugh!
+        img2sixel -h auto -w auto -q full "$image"
     else
         tput cup 0 0 
-        print_image "$image" 1 "$(base64 < "$image")" $width $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
+        print_image_iterm "$image" 1 "$(base64 < "$image")" $width $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
     fi
     display_bar
 }
