@@ -37,6 +37,11 @@ OS X, you can create a symbolic link in an appropriate directory, e.g.,
 A previous version of the script tried to support X11 using `w3mimgdisplay`.
 That got complicated and it didn't work, so I removed it.
 
+Kitty offers robust detection of whether or not its features are supported in
+a given session; iTerm does not. So the script uses iTerm's protocol unless it
+detects support for Kitty. This means it will at best silently fail to display
+anything in other terminal emulators.
+
 
 Poppler
 -------
