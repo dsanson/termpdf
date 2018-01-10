@@ -74,7 +74,7 @@ function print_image_iterm() {
 }
 
 function print_image_kitty() {
-   $kitty icat --place "${4}x${5}@0x0" "$1"
+   $kitty icat $kitty_opts --place "${4}x${5}@0x0" "$1"
 }
 
 
@@ -244,8 +244,12 @@ function second_setup() {
 
     # check for kitty image support
     kitty="kitty" 
+    kitty_opts=""
     if $kitty icat --detect-support; then
         protocol="kitty"
+        if $kitty icat --help | grep -q 'scale-up'; then
+            kitty_opts="--scale-up"
+        fi
     else
         protocol="iterm"
     fi
