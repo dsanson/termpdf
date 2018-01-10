@@ -30,11 +30,6 @@ Terminal Emulator
 
 The script currently supports two terminal emulators: iTerm2 (> 2.9) and Kitty.
 
-Support for kitty requires that you have `kitty` in your PATH. If you are on
-OS X, you can create a symbolic link in an appropriate directory, e.g.,
-
-   $ link -s ~/Applications/Kitty.app/Contents/MacOS/kitty ~/bin/kitty
-
 Kitty support was just added and I suspect it is pretty buggy! Report bugs as
 you find them!
 
