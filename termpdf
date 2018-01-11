@@ -8,8 +8,9 @@ else
 fi
 
 ###########################################################################
-# termpdf is a barebones inline pdf and djvu viewer for iTerm versions 2.9
-# and later.
+# termpdf is a barebones inline pdf and djvu viewer. It currently works
+# in iTerm 2.9 or later, Kitty, and (very badly) in terminals that support
+# libsixel,
 #
 # It is a ridiculous hack, but it usually works for me.
 ###########################################################################
@@ -102,10 +103,6 @@ function get_pane_size() {
         pxheight=$[$pxheight - $cell_height]
     fi
 }
-
-
-
-
 
 ###########################################################################
 # Functions for dealing with pages
@@ -238,7 +235,9 @@ function second_setup() {
 
     # check for kitty image support
     kitty="kitty" 
-    if $kitty icat --detect-support 2> ${tmp_dir}/support; then
+    if [[ "$protocol" == "sixel" ]]; then
+        message="$protocol"
+    elif $kitty icat --detect-support 2> ${tmp_dir}/support; then
         protocol="kitty"
         support=$(cat ${tmp_dir}/support)
         kitty_opts="--transfer-mode=$support "
@@ -1184,8 +1183,7 @@ function extract_and_display_page() {
             print_image_kitty "$image" 
             ;;
         "sixel")
-            # img2sixel wants dimensions in pixels. Ugh!
-            img2sixel -h auto -w auto -q full "$image"
+            img2sixel -h $target_height -w $target_width -q full -b vt340color "$image"
             ;;
         "iterm")
             tput cup 0 0 
@@ -1275,6 +1273,11 @@ trap 'error_and_exit "interrupted"' SIGINT
 trap clean_and_exit SIGTERM
 
 first_setup
+
+if [[ "$1" == "-sixel" ]]; then
+    protocol="sixel"
+    shift
+fi
 
 if [[ "$1" =~ ^http[s]?://.*$ ]]; then
     cd "${tmp_dir}"
