@@ -74,7 +74,7 @@ function print_image_iterm() {
 }
 
 function print_image_kitty() {
-   $kitty icat $kitty_opts --place "${4}x${5}@0x0" "$1"
+   $kitty icat $kitty_opts --place "${width}x${height}@0x0" "$1"
 }
 
 
@@ -84,34 +84,28 @@ function print_image_kitty() {
 ###########################################################################
 
 function get_pane_size() {
-    width=$(tput cols)
-    height=$(tput lines)
-    if [[ "$protocol" != kitty ]]; then
-        width=$(expr $width - 1)
-        height=$(expr $height - 1 )
+    if [[ "$terminal_size" == "true" ]]; then
+        width=$(terminal_size | awk '{print $1}')
+        height=$(terminal_size | awk '{print $2}')
+        pxwidth=$(terminal_size | awk '{print $3}')
+        pxheight=$(terminal_size | awk '{print $4}')
+    else
+        width=$(tput cols)
+        height=$(tput lines)
+        pxwidth=0
+    fi
+    # make space for display bar
+    width=$(expr $width - 1)
+    height=$(expr $height - 1 )
+    if [[ "$terminal_size" == "true" ]]; then
+        cell_height=$(echo "scale=0; $pxheight / $height" | bc -l) 
+        pxheight=$[$pxheight - $cell_height]
     fi
 }
 
 
-###########################################################################
-# Function for adjusting background color of current pane 
-# 
-# The tmux commands are commented out because iTerm2 doesn't seem
-# to respect tmux background colors when drawing images, so this
-# doesn't help with https://github.com/dsanson/termpdf/issues/10
-###########################################################################
 
-function set_background() {
-    if [[ $TMUX ]]; then
-    :    tmux select-pane -P 'bg=white'
-    fi
-}
 
-function revert_background() {
-    if [[ $TMUX ]]; then
-    :    tmux select-pane -P 'default'
-    fi
-}
 
 ###########################################################################
 # Functions for dealing with pages
@@ -248,11 +242,13 @@ function second_setup() {
         protocol="kitty"
         support=$(cat ${tmp_dir}/support)
         kitty_opts="--transfer-mode=$support "
-        if $kitty icat --help | grep -q 'scale-up'; then
-            kitty_opts="$kitty_opts --scale-up"
-        fi
     else
         protocol="iterm"
+    fi
+
+    # check for terminal_size support
+    if hash terminal_size; then
+        terminal_size=true
     fi
 
     # override these settings by creating a config file
@@ -342,7 +338,6 @@ function reload() {
 
 function clean_and_exit() {
     rm -rf "$tmp_dir"
-    revert_background
     doc_state="$page_number"
     if [[ -n $enable_marks ]]; then
         for reg in ${!marks[@]}; do
@@ -370,7 +365,7 @@ function error_and_exit() {
         source "$HOME/.config/termpdf/exithook"
     fi
     >&2 echo "$(basename $0) error:"
-    >&2 echo "    $1"
+    >&2 echo "    $@"
     exit 1
 }
 
@@ -491,22 +486,40 @@ function crop_image_in_directory() {
 #     extract_pdf_page path root extension page 
 ###########################################################################
 
+function calculate_dimensions() {
+       page_size=$(pdfinfo -box "$1" | grep 'Page size')
+       page_width=$(echo "$page_size" | awk '{print $3}')
+       page_height=$(echo "$page_size" | awk '{print $5}')
+       dim=$(echo "scale=3; sc1=$pxwidth/$page_width; sc2=$pxheight/$page_height; if (sc1<sc2) (sc=sc1)  else (sc=sc2); $page_width * sc; $page_height * sc" | bc -l)
+       target_width=$(echo $dim | awk '{print $2}')
+       target_height=$(echo $dim | awk '{print $3}')
+       target_width=${target_width%.*}
+       target_height=${target_height%.*}
+       gs_opts="$gs_opts -dPDFFitPage=true -g${target_width}x${target_height}"
+}
 
 function extract_pdf_page_to_png_gs() {
-    if [[ ! -f "${tmp_dir}/${1}${3}.png" ]]; then
+    if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
        pdfseparate -f "$3" -l "$3" "${1}.${2}" "${tmp_dir}/${1}%d.pdf"
-       gs -sDEVICE=png16m -r200 -dTextAlphaBits=4 -q -o "${tmp_dir}/${1}${3}.png"  "${tmp_dir}/${1}${3}.pdf" 
     fi
-    image="${tmp_dir}/${1}${3}.png"
+    if [[ $pxwidth -ne 0 ]]; then
+       calculate_dimensions "${tmp_dir}/${1}${3}.pdf"
+    else
+       kitty_opts="$kittyopts --scale-up"
+    fi
+    if [[ ! -f "${tmp_dir}/${1}${3}${target_width}x${target_height}.png" ]]; then
+       gs_opts="$gs_opts -sDEVICE=png16m -dUseCropBox -r200 -dTextAlphaBits=4 -q"
+       gs $gs_opts -o "${tmp_dir}/${1}${3}${target_width}x${target_height}.png"  "${tmp_dir}/${1}${3}.pdf"
+    fi
+    image="${tmp_dir}/${1}${3}${target_width}x${target_height}.png"  
 }
 
-
-function extract_pdf_page_to_png() {
-    if [[ ! -f "${tmp_dir}/${1}${3}.png" ]]; then
-       pdftocairo -f "$3" -l "$3" -png -singlefile -r 200 "${1}.${2}" "${tmp_dir}/${1}${3}"
-    fi
-    image="${tmp_dir}/${1}${3}.png"
-}
+# function extract_pdf_page_to_png() {
+#     if [[ ! -f "${tmp_dir}/${1}${3}.png" ]]; then
+#        pdftocairo -f "$3" -l "$3" -png -singlefile -r 200 "${1}.${2}" "${tmp_dir}/${1}${3}"
+#     fi
+#     image="${tmp_dir}/${1}${3}.png"
+# }
 
 # function extract_pdf_page() {
 #     if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
@@ -1166,15 +1179,19 @@ function read_command() {
 function extract_and_display_page() {
     get_pane_size 
     extract_page "$fileroot" "$filetype" "$page_number" 
-    if [[ "$protocol" == "kitty" ]]; then
-        print_image_kitty "$image" 1 1 "$width" $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
-    elif [[ "$protocol" == "sixel" ]]; then
-        # img2sixel wants dimensions in pixels. Ugh!
-        img2sixel -h auto -w auto -q full "$image"
-    else
-        tput cup 0 0 
-        print_image_iterm "$image" 1 "$(base64 < "$image")" $width $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
-    fi
+    case "$protocol" in
+        "kitty")
+            print_image_kitty "$image" 
+            ;;
+        "sixel")
+            # img2sixel wants dimensions in pixels. Ugh!
+            img2sixel -h auto -w auto -q full "$image"
+            ;;
+        "iterm")
+            tput cup 0 0 
+            print_image_iterm "$image" 1 "$(base64 < "$image")" $width $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
+            ;;
+    esac
     display_bar
 }
 
@@ -1244,6 +1261,7 @@ function display_document() {
 }
 
 function resize() {
+    clear
     extract_and_display_page
 }
 
