@@ -846,8 +846,10 @@ function crop() {
         PDF|pdf|tif|TIF|tiff|TIFF|DJVU|djvu)
             if [[ "$cropped" == "" ]]; then
                 cropped="cropped"
+                clear
             else
                 cropped=""
+                clear
             fi
             reload
             ;;
