@@ -527,12 +527,22 @@ function extract_pdf_page_to_png_gs() {
 #     image="${tmp_dir}/${1}${3}.pdf"
 # }
 
-function extract_djvu_page_to_pbm() {
-    if [[ ! -f "${tmp_dir}/${1}${3}.pbm" ]]; then
-       ddjvu -format=pbm -page=$3 "${1}.${2}" "${tmp_dir}/${1}${3}.pbm"
+function extract_djvu_page_to_png_gs() {
+    if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
+       ddjvu -format=pdf -page=$3 "${1}.${2}" "${tmp_dir}/${1}${3}.pdf"
     fi
-    image="${tmp_dir}/${1}${3}.pbm"
+    if [[ $pxwidth -ne 0 ]]; then
+       calculate_dimensions "${tmp_dir}/${1}${3}.pdf"
+    else
+       kitty_opts="$kittyopts --scale-up"
+    fi
+    if [[ ! -f "${tmp_dir}/${1}${3}${target_width}x${target_height}.png" ]]; then
+       gs_opts="$gs_opts -sDEVICE=png16m -dUseCropBox -r200 -dTextAlphaBits=4 -q"
+       gs $gs_opts -o "${tmp_dir}/${1}${3}${target_width}x${target_height}.png"  "${tmp_dir}/${1}${3}.pdf"
+    fi
+    image="${tmp_dir}/${1}${3}${target_width}x${target_height}.png"  
 }
+
 
 # function extract_djvu_page() {
 #     if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
@@ -566,7 +576,7 @@ function extract_page() {
             crop_image "$1" "$3" "png"
             ;;
         djvu|DJVU)
-            extract_djvu_page_to_pbm "$1" "$2" "$3"
+            extract_djvu_page_to_png_gs "$1" "$2" "$3"
             crop_image "$1" "$3" "pbm"
             ;;
         tif|tiff|TIF|TIFF)
