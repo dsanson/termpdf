@@ -244,11 +244,12 @@ function second_setup() {
 
     # check for kitty image support
     kitty="kitty" 
-    kitty_opts=""
-    if $kitty icat --detect-support; then
+    if $kitty icat --detect-support 2> ${tmp_dir}/support; then
         protocol="kitty"
+        support=$(cat ${tmp_dir}/support)
+        kitty_opts="--transfer-mode=$support "
         if $kitty icat --help | grep -q 'scale-up'; then
-            kitty_opts="--scale-up"
+            kitty_opts="$kitty_opts --scale-up"
         fi
     else
         protocol="iterm"
@@ -354,7 +355,7 @@ function clean_and_exit() {
     if [[ -f "$HOME/.config/termpdf/exithook" ]]; then
         source "$HOME/.config/termpdf/exithook"
     fi
-    clear
+    #clear
     exit
 }
 
@@ -466,9 +467,11 @@ function split_at_marks() {
 # }
 
 function crop_image() {
-    if [[ "$cropped" == "cropped" ]]; then
-        convert -trim -fuzz "${crop_aggression}%" "$image" "${tmp_dir}/${1}cropped${2}"
-        image="${tmp_dir}/${1}cropped${2}"
+    if [[ "$cropped" == "cropped"  ]]; then
+        if [[ ! -f "${tmp_dir}/${1}${3}cropped.${2}" ]]; then
+            convert -trim -fuzz "${crop_aggression}%" "$image" "${tmp_dir}/${1}${3}cropped.${2}"
+        fi
+        image="${tmp_dir}/${1}${3}cropped.${2}"
     fi
 }
 
@@ -487,6 +490,15 @@ function crop_image_in_directory() {
 #
 #     extract_pdf_page path root extension page 
 ###########################################################################
+
+
+function extract_pdf_page_to_png_gs() {
+    if [[ ! -f "${tmp_dir}/${1}${3}.png" ]]; then
+       pdfseparate -f "$3" -l "$3" "${1}.${2}" "${tmp_dir}/${1}%d.pdf"
+       gs -sDEVICE=png16m -r200 -dTextAlphaBits=4 -q -o "${tmp_dir}/${1}${3}.png"  "${tmp_dir}/${1}${3}.pdf" 
+    fi
+    image="${tmp_dir}/${1}${3}.png"
+}
 
 
 function extract_pdf_page_to_png() {
@@ -538,16 +550,16 @@ function choose_from_directory() {
 function extract_page() {
     case $filetype in
         pdf|PDF)
-            extract_pdf_page_to_png "$1" "$2" "$3" 
-            crop_image "$1" "png"
+            extract_pdf_page_to_png_gs "$1" "$2" "$3" 
+            crop_image "$1" "$3" "png"
             ;;
         djvu|DJVU)
             extract_djvu_page_to_pbm "$1" "$2" "$3"
-            crop_image "$1" "pbm"
+            crop_image "$1" "$3" "pbm"
             ;;
         tif|tiff|TIF|TIFF)
             extract_tiff_page "$1" "$2" "$3"
-            crop_image "$1" "tiff"
+            crop_image "$1" "$3" "tiff"
             ;;
         directory)
             choose_from_directory "$1" "$3"
@@ -555,7 +567,7 @@ function extract_page() {
             ;;
         jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF|gifv|GIFV|bmp|BMP)
             image="$document"
-            crop_image "$1" "$2"
+            crop_image "$1" "$3" "$2"
             ;;
         *)
             error_and_exit "$filetype not supported."
