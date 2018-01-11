@@ -441,25 +441,6 @@ function split_at_marks() {
 # TODO: add support for cropping TIFs using convert
 ###########################################################################
 
-# function crop_margins() {
-#      if [[ ! -f "${tmp_dir}/${1}${2}_k2opt.pdf" ]]; then
-#          k2pdfopt -ocr- -ui- -x -mode tm "${tmp_dir}/${1}${2}.pdf" > /dev/null
-#      fi
-# }
-# function two_columns() {
-#      if [[ ! -f "${tmp_dir}/${1}${2}_cols.pdf" ]]; then
-#          k2pdfopt -ocr- -ui- -x -col 2 -o '%s_cols.pdf' "${tmp_dir}/${1}${2}.pdf" > /dev/null
-#      fi
-# }
-# function crop_pdf() {
-#     if [[ "$cropped" == "_k2opt" ]]; then
-#         crop_margins "$1" "$2"
-#     fi
-#     if [[ "$cropped" == "_cols" ]]; then
-#         two_columns "$1" "$2"
-#     fi
-# }
-
 function crop_image() {
     if [[ "$cropped" == "cropped"  ]]; then
         if [[ ! -f "${tmp_dir}/${1}${3}cropped.${2}" ]]; then
@@ -513,19 +494,6 @@ function extract_pdf_page_to_png_gs() {
     image="${tmp_dir}/${1}${3}${target_width}x${target_height}.png"  
 }
 
-# function extract_pdf_page_to_png() {
-#     if [[ ! -f "${tmp_dir}/${1}${3}.png" ]]; then
-#        pdftocairo -f "$3" -l "$3" -png -singlefile -r 200 "${1}.${2}" "${tmp_dir}/${1}${3}"
-#     fi
-#     image="${tmp_dir}/${1}${3}.png"
-# }
-
-# function extract_pdf_page() {
-#     if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
-#        pdfseparate -f "$3" -l "$3" "${1}.${2}" "${tmp_dir}/${1}%d.pdf"
-#     fi
-#     image="${tmp_dir}/${1}${3}.pdf"
-# }
 
 function extract_djvu_page_to_png_gs() {
     if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
@@ -544,12 +512,6 @@ function extract_djvu_page_to_png_gs() {
 }
 
 
-# function extract_djvu_page() {
-#     if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
-#        ddjvu -format=pdf -page=$3 "${1}.${2}" "${tmp_dir}/${1}${3}.pdf"
-#     fi
-#     image="${tmp_dir}/${1}${3}.pdf"
-# }
 
 function extract_tiff_page() {
     if [[ ! -f "${tmp_dir}/${1}${3}.tiff" ]]; then
