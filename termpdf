@@ -210,6 +210,8 @@ function keys() {
         print="p"
         crop="c"
         notes="a" 
+        text_all="t"
+        text_page="T"
         zoom_in="+"
         zoom_out="-"
         zoom_100="="
@@ -490,39 +492,43 @@ function calculate_target_dimensions() {
 }
 
 function extract_pdf_page_to_png_gs() {
-    if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
+    current_page_pdf="${tmp_dir}/${1}${3}.pdf"
+    if [[ ! -f "$current_page_pdf" ]]; then
        pdfseparate -f "$3" -l "$3" "${1}.${2}" "${tmp_dir}/${1}%d.pdf"
     fi
     if [[ $pxwidth -ne 0 ]]; then
-       get_pdf_page_dimensions "${tmp_dir}/${1}${3}.pdf"
+       get_pdf_page_dimensions "$current_page_pdf"
        calculate_target_dimensions
     else
        kitty_opts="$kitty_opts --scale-up"
     fi
-    if [[ ! -f "${tmp_dir}/${1}${3}${target_width}x${target_height}.png" ]]; then
+    current_page_image="${tmp_dir}/${1}${3}${target_width}x${target_height}.png" 
+    if [[ ! -f "$current_page_image" ]]; then
        gs_opts="$gs_opts -sDEVICE=png16m -dUseCropBox -r200 -dTextAlphaBits=4 -q"
-       gs $gs_opts -o "${tmp_dir}/${1}${3}${target_width}x${target_height}-c.png"  "${tmp_dir}/${1}${3}.pdf"
-       convert  "${tmp_dir}/${1}${3}${target_width}x${target_height}-c.png"  -define png:compression-level=0 -define png:compression-filter=0  -density 200 "${tmp_dir}/${1}${3}${target_width}x${target_height}.png" 2> /dev/null 
+       gs $gs_opts -o "${tmp_dir}/compressed.png"  "$current_page_pdf"
+       convert  "${tmp_dir}/compressed.png"  -define png:compression-level=0 -define png:compression-filter=0  -density 200 "$current_page_image" 2> /dev/null 
     fi
-    image="${tmp_dir}/${1}${3}${target_width}x${target_height}.png"  
+    image="$current_page_image"  
 }
 
-
 function extract_djvu_page_to_png_gs() {
-    if [[ ! -f "${tmp_dir}/${1}${3}.pdf" ]]; then
+    current_page_pdf="${tmp_dir}/${1}${3}.pdf"
+    if [[ ! -f "$current_page_pdf" ]]; then
        ddjvu -format=pdf -page=$3 "${1}.${2}" "${tmp_dir}/${1}${3}.pdf"
     fi
     if [[ $pxwidth -ne 0 ]]; then
-       get_pdf_page_dimensions "${tmp_dir}/${1}${3}.pdf"
+       get_pdf_page_dimensions "$current_page_pdf"
        calculate_target_dimensions
     else
        kitty_opts="$kitty_opts --scale-up"
     fi
-    if [[ ! -f "${tmp_dir}/${1}${3}${target_width}x${target_height}.png" ]]; then
+    current_page_image="${tmp_dir}/${1}${3}${target_width}x${target_height}.png" 
+    if [[ ! -f "$current_page_image" ]]; then
        gs_opts="$gs_opts -sDEVICE=png16m -dUseCropBox -r200 -dTextAlphaBits=4 -q"
-       gs $gs_opts -o "${tmp_dir}/${1}${3}${target_width}x${target_height}.png"  "${tmp_dir}/${1}${3}.pdf"
+       gs $gs_opts -o "${tmp_dir}/compressed.png"  "$current_page_pdf"
+       convert  "${tmp_dir}/compressed.png"  -define png:compression-level=0 -define png:compression-filter=0  -density 200 "$current_page_image" 2> /dev/null 
     fi
-    image="${tmp_dir}/${1}${3}${target_width}x${target_height}.png"  
+    image="$current_page_image"  
 }
 
 function extract_tiff_page() {
@@ -604,6 +610,36 @@ function extract_page() {
 
 
 ###########################################################################
+# Functions for displaying text
+###########################################################################
+
+function view_pdf_all_as_text() {
+    longest_line_number="$(pdftotext "$current_page_pdf" - | awk 'length > x { x = length; y = NR } END { print y }')"
+    longest_line_start="$(pdftotext "$current_page_pdf" - | sed -n "$longest_line_number"p)"    
+    longest_line_start="${longest_line_start//\(/\\(}"
+    longest_line_start="${longest_line_start//\)/\\)}"
+    longest_line_start="${longest_line_start//\?/\\?}"
+    pdftotext -nopgbrk "$1" - | less -p"${longest_line_start}" "-j ${longest_line_number}"
+    extract_and_display_page
+}
+
+function view_djvu_all_as_text() {
+    longest_line_number="$(djvutxt -page="$page_number" "$1" | awk 'length > x { x = length; y = NR } END { print y }')"
+    longest_line_start="$(djvutxt -page="$page_number" "$1" | sed -n "$longest_line_number"p)"    
+    longest_line_start="${longest_line_start//\(/\\(}"
+    longest_line_start="${longest_line_start//\)/\\)}"
+    longest_line_start="${longest_line_start//\?/\\?}"
+    #error_and_exit "$longest_line_start"
+    djvutxt "$1" | less -p"${longest_line_start}" "-j ${longest_line_number}" 
+    extract_and_display_page
+}
+
+function view_pdf_page_as_text() {
+    pdftotext -nopgbrk "$1" - | less 
+    extract_and_display_page
+}
+
+###########################################################################
 # Functions for searching for text
 ###########################################################################
 
@@ -612,11 +648,11 @@ search_djvu() {
 }
 
 search_pdf() {
-    allresults=$(pdfgrep -n "$@" "$document" | cut -c 1-$message_length)
+    allresults=$(pdfgrep -i -n "$@" "$document" | cut -c 1-$message_length)
     readarray -t results <<< "$allresults"
     for (( i=0; i<${#results[@]}; i++ ))
     do
-        if [[ "${results[$i]%:*}" -ge "$page_number" ]]
+        if [[ "${results[$i]%%:*}" -ge "$page_number" ]]
         then
             search_index=$i
             break
@@ -627,9 +663,17 @@ search_pdf() {
 }
 
 goto_result() {
-    message="[$[$search_index + 1]/$[ ${#results[@]} + 1 ]] ${results[$1]#*:}"
+    search_index="$1"
+    message="[$[$1 + 1]/$[ ${#results[@]} + 1 ]] ${results[$1]#*:}"
     goto ${results[$1]%%:*}
+    # if [[ "$protocol" == "kitty" ]]; then
+    #     mark_result
+    # fi
 }
+
+# mark_result() {
+#     pdftotext -f "$page_number" -l "$page_number" -bbox "$current_page_pdf" - | grep -i "$query"
+# }
 
 next_result() {
     search_index=$[$search_index + $1]
@@ -776,6 +820,8 @@ ${goto_m}${reference}[r]:   | go to to page in register [r]
 ${yank}${reference}[r]:     | yank from current page to mark and save as pdf
 $refresh:                   | refresh display
 $reload:                    | reload document
+$text_page:                 | view page as text
+$text_all:                  | view entire document as text
 $make:                      | remake document
 $notes:                     | annotate in split pane
 $quit:                      | quit
@@ -895,12 +941,13 @@ function crop() {
 }
 
 function search() {
+    query="$@"
     case $filetype in
         pdf|PDF)
-            search_pdf "$@" 
+            search_pdf "$query" 
             ;;
         djvu|DJVU)
-            search_djvu "$@"
+            search_djvu "$query"
             ;;
         *)
             message="Search not supported for this filetype."
@@ -915,6 +962,28 @@ function print() {
     else
         print_document $1 $2
     fi
+}
+
+function text() {
+    case "$filetype" in
+        pdf)
+            if [[ "$1" == "page" ]]; then
+                view_pdf_page_as_text "$current_page_pdf"
+            else
+                view_pdf_all_as_text "$document"
+            fi
+            ;;
+        djvu)
+            if [[ "$1" == "page" ]]; then
+                view_pdf_page_as_text "$current_page_pdf"
+            else
+                view_djvu_all_as_text "$document"
+            fi
+            ;;
+        *)
+            message="text not available for $filetype"
+            ;;
+    esac
 }
 
 function user1() {
@@ -1020,6 +1089,9 @@ function process_command_mode(){
             ;;
         zoom)
             zoom="${command[1]}"
+            ;;
+        text)
+            text "$1"
             ;;
         help)
             help
@@ -1135,6 +1207,12 @@ function read_command() {
             ;;
         "$notes")
             notes
+            ;;
+        "$text")
+            text
+            ;;
+        "$text_all")
+            text all
             ;;
         "$search")
             tput cup $height 0
