@@ -249,4 +249,3 @@ workflow.
     image viewer for iTerm2 (fork of term-img). Doesn't work in tmux.
 -   [termimg](https://github.com/frnsys/termimg): uses `w3mimgdisplay`.
 
-  [screenshot]: screenshot.png
