@@ -85,11 +85,11 @@ function print_image_kitty() {
 ###########################################################################
 
 function get_pane_size() {
-    if [[ "$terminal_size" == "true" ]]; then
-        width=$(terminal_size | awk '{print $1}')
-        height=$(terminal_size | awk '{print $2}')
-        pxwidth=$(terminal_size | awk '{print $3}')
-        pxheight=$(terminal_size | awk '{print $4}')
+    if [[ "$terminal_dimensions" == "true" ]]; then
+        width=$(terminal_dimensions | awk '{print $1}')
+        height=$(terminal_dimensions | awk '{print $2}')
+        pxwidth=$(terminal_dimensions | awk '{print $3}')
+        pxheight=$(terminal_dimensions | awk '{print $4}')
     else
         width=$(tput cols)
         height=$(tput lines)
@@ -98,7 +98,7 @@ function get_pane_size() {
     # make space for display bar
     width=$(expr $width - 1)
     height=$(expr $height - 1 )
-    if [[ "$terminal_size" == "true" ]]; then
+    if [[ "$terminal_dimensions" == "true" ]]; then
         cell_height=$(echo "scale=0; $pxheight / $height" | bc -l) 
         pxheight=$[$pxheight - $cell_height]
     fi
@@ -245,9 +245,9 @@ function second_setup() {
         protocol="iterm"
     fi
 
-    # check for terminal_size support
-    if hash terminal_size; then
-        terminal_size=true
+    # check for terminal_dimensions support
+    if hash terminal_dimensions; then
+        terminal_dimensions=true
     fi
 
     # override these settings by creating a config file
