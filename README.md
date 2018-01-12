@@ -1,26 +1,31 @@
 termpdf
 =======
 
-`termpdf` is a barebones inline graphical PDF (and DJVU and TIFF and CBR and
-CBZ and JPG and PNG and GIF and BMP) viewer for
- [iTerm](https://iterm2.com/) 2.9 or later, with experimental (buggy) support added
- for [kitty](https://github.com/kovidgoyal/kitty). It
-is a ridiculous hack---a bash script wrapped around some special terminal
+`termpdf` is a barebones graphical PDF (and DJVU and TIFF and CBR and
+CBZ and JPG and PNG and GIF and BMP) viewer that runs in your terminal.
+
+Right now, it runs in
+
+-   [iTerm](https://iterm2.com/) 2.9 or later
+
+And it has experimental support for
+
+-   [kitty](https://github.com/kovidgoyal/kitty)
+-   [libsixel](https://github.com/saitoha/libsixel)
+
+It is a ridiculous hack---a bash script wrapped around some special terminal
 escape codes and a bunch of command line tools. But it works well enough for me to be useful.
 
-![screenshot]
+Screenshots
+===========
 
-Features
-========
+Running in Kitty:
 
--   displays images sized to fit your terminal window (or tmux pane)
--   navigate multipage documents using vim-style commands
--   yank selected pages to a new pdf file
--   print selected pages
--   automatically crop margins 
--   saves bookmarks and opens document to last viewed page
--   control running instances remotely using the included `tpdfc` script
--   open a text file for annotation in a split pane in tmux
+![Screenshot in Kitty](screenshot_kitty.png)
+
+Running in iTerm:
+
+![Screenshot in iTerm](screenshot_iterm.png)
 
 Requirements
 ============
@@ -28,69 +33,61 @@ Requirements
 Terminal Emulator
 -----------------
 
-The script currently supports two terminal emulators: iTerm2 (> 2.9) and Kitty.
+You will need iTerm version 2.9 or later, or a Kitty version later than 0.6.1,
+or, if you want to play around, a terminal with sixel support. iTerm support
+has been around for awhile. It should be pretty stable if a bit slow. Kitty
+support is new and probably a bit buggy. But it is also faster than
+iTerm---especially if you use the `terminal_dimensions` helper app.
 
-Kitty support was just added and I suspect it is pretty buggy! Report bugs as
-you find them!
+To use with Kitty, be sure that the `kitty` executable is in your path.
 
 A previous version of the script tried to support X11 using `w3mimgdisplay`.
-That got complicated and it didn't work, so I removed it.
+That got complicated and it didn't work, so I removed it. But recent changes
+to the code probably make it easier to implement.
 
-Kitty offers robust detection of whether or not its features are supported in
-a given session; iTerm does not. So the script uses iTerm's protocol unless it
-detects support for Kitty. This means it will at best silently fail to display
-anything in other terminal emulators.
+terminal_dimensions
+-------------
 
-Poppler
+This is a tiny command line tool written in C that reports terminal
+dimensions, both in character cells and in pixels, e.g.,
+
+~~~
+$ terminal_dimensions
+141 43 2538 1548
+~~~
+
+This is helpful, because standard cli tools don't report pixel dimensions. But
+in many emulators, including iTerm, the pixel dimensions will be misreported as 0 and 0:
+
+~~~
+$ terminal_dimensions
+141 43 0 0
+~~~
+
+This is too bad, because pixel dimensions are super helpful! Install this, and
+image rendering in Kitty is *much* faster. Also, you will need this if you
+want to play around with the `sixel` support.
+
+~~~
+$ git clone https://github.com/dsanson/terminal_dimensions
+$ cd terminal_dimensions
+$ gcc terminal_dimensions.c -o terminal_dimensions
+$ mv terminal_dimensions /usr/local/bin
+~~~
+
+Poppler, djvulibre, libtiff, unrar, imagemagick, ghostscript
 -------
 
-The script uses `pdftocairo` to convert PDF pages to PNG images,
-and `pdfinfo` to figure out how many pages a PDF document has. These commands
-are provided by [Poppler]:
+The script uses `pdfseparate` and `pdfinfo`, from Poppler to manipulate PDFs, `ddjvu` and `djvudump`, from DJVULibre, to manipulate DJVU files, and `tiffutil` and `tiffinfo`, to manipulate TIFF files. It uses `unrar` and `unzip` to unpack CBR and CBZ files. It uses ImageMagick's `convert` and `identify`. And it uses Ghostscript to convert PDFs to PNGS, because it is faster, and offers more control, than Poppler's `pdfcairo`.
 
-    $ brew install poppler
+On OS X, you can install all these things by running:
 
-DJVULibre 
----------
-
-The script uses `ddjvu` to extract pages from DJVU documents and
-convert them to PNG, and `djvudump` to figure out how many pages a DJVU
-document has. These commands are provided by DJVULibre: 
-
-    $ brew install djvulibre
-
-libtiff
--------
-
-The script uses `tiffutil` to extract pages from
-TIFF files, and `tiffinfo` to figure out how many
-pages a TIFF document has. These commands are provided by libtiff:
-
-    $ brew install libtiff
-
-unrar
------
-
-The script uses `unrar` to open RAR archives and CBR comic books. To install:
-
-    $ brew install unrar
-
-
-convert
--------
-
-The script uses `convert` to crop images. (A previous version used 
-[`k2pdfopt`](http://willus.com/k2pdfopt/).
-
-    $ brew install imagemagick
+    $ brew install poppler djvulibre libtiff unrar imagemagick
 
 Bash 4.x
 --------
 
-Bash 3.x is shipped with OS X. Bash 4.x adds associative arrays. A previous
-version of the script required Bash 4.x, because it made heavy use of
-associative arrays. This version only requires Bash 4.x if you want support
-for marks.
+If you run the script from Bash 4.x, it supports marks. OS X still ships with Bash 3.x, so,
 
     $ brew install bash
 
@@ -101,6 +98,27 @@ I've added basic support for viewing Microsoft Office (docx, xlsx, pptx) and
 LibreOffice (odt, ods, odp) files. The script converts them to PDF using
 LibreOffice, and then displays the resulting PDF. For this to work, you'll
 need to have a copy of LibreOffice installed in your `/Applications` folder.
+
+TODO: As written, this probably only works on OS X.
+
+
+Libsixel
+--------
+
+If you want to try out the experimental sixel support, be sure you have `terminal_dimensions` installed. You also need to install 
+
+-   [libsixel](https://github.com/saitoha/libsixel)
+
+and make sure that the `img2sixel` command is in your path. Then try:
+
+```
+$ termpdf -sixel <file>
+$ termpdf -sixel <directory>
+```
+
+Here is a screenshot of the best results I can get using a version of xterm built with sixel support on OS X:
+
+![sixel screenshot](screenshot_xterm.png)
 
 Installation
 ============
@@ -115,6 +133,9 @@ Usage
 $ termpdf <file> 
 $ termpdf <directory>
 ```
+
+If you want to try out the sixel support, try
+
 
 File type is determined by extension. Supported formats include: PDF, DJVU, TIF,
 CBR, CBZ, CBT, JPG, JPEG, PNG, GIF, and BMP.
@@ -191,21 +212,9 @@ things, to override the key mappings and tweak the print settings.
 You can also put commands in `$HOME/.config/termpdf/exithook`, which will be
 sourced before the script exits. 
 
-# `termdoc`
-
-`termdoc` was a wrapper script for viewing more filetypes using `termpdf`, by
-converting them as needed to formats supported by `termpdf`. But I've added
-this feature into `termpdf` itself, so this is obsolete.
-
 # Known issues
 
--   Kitty's `kitty icat` command doesn't provide a way to scale small images
-    to a larger size to fill the screen (but it does scale large images to fit
-    the screen). FIXED: [kitty
-    commit](https://github.com/kovidgoyal/kitty/commit/03702772d3e45a58d7d4b6c7252dc3b6caecd3ae)
-
--   Various events, like resizing panes, can cause tmux to clobber the
-displayed page. Use the 'refresh display' command (`r`) to fix this.
+-   Earlier versions of the script worked well with tmux on iTerm. The current version does not. I'm not sure why.
 
 -   The make command only works if you have a Makefile in the same
 directory as the PDF. It would be nice to support a configurable make command.
@@ -215,12 +224,7 @@ it will just crash or fart or do something unexpected.
 
 # TODO
 
--   rewrite in real language (using ncurses?). It would be really cool to have
-    a PDF viewer for vim+tmux with the power of emacs'
-    [pdf-tools](https://github.com/politza/pdf-tools). But that's not going to
-    happen using bash. Also, if written in a proper language, it would be
-    easier to implement other image drawing schemes that would work in
-    X11 terminals.    
+-   rewrite in real language (using ncurses?).
 -   rewrite kitty support using escape codes instead of `kitty icat`
     
 # Similar Projects
@@ -245,6 +249,4 @@ workflow.
     image viewer for iTerm2 (fork of term-img). Doesn't work in tmux.
 -   [termimg](https://github.com/frnsys/termimg): uses `w3mimgdisplay`.
 
-
-  [Poppler]: http://poppler.freedesktop.org/
   [screenshot]: screenshot.png
