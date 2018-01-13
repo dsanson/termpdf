@@ -130,12 +130,11 @@ Usage
 =====
 
 ```.bash
-$ termpdf <file> 
-$ termpdf <directory>
+$ termpdf <option> <file> 
 ```
 
-If you want to try out the sixel support, try
-
+Right now, there is only one option: `-sixel`, which enables the (very bad)
+sixel support.
 
 File type is determined by extension. Supported formats include: PDF, DJVU, TIF,
 CBR, CBZ, CBT, JPG, JPEG, PNG, GIF, and BMP.
@@ -146,45 +145,62 @@ archives.
 
 While viewing a file, the default key commands are:
 
-    enter/space: forward one page
-    [n]k/j:      forward or back [n] pages
-    [n]G:        go to page [n]
-    G:           go to last page
-    gg:          go to first page
-    [n]p:        print [n copies of] document
-    [n]y:        yank [n] pages forward and save as pdf
-    yy:          yank current page and save as pdf
-    r:           refresh display
-    R:           reload document
-    M:           remake document
-    c:           crop margins
-    a:           annotate in split pane
-    m[r]:        store current page in register [r]
-    '[r]:        go to page stored in register [r]
-    g'[r]:       go to to page in register [r]
-    y'[r]:       yank from current page to mark and save as pdf
-    +:           zoom in (this is kind of janky)
-    -:           zoom out (also janky)
-    =:           reset zoom to 100%
-    q:           quit
-    h:           view this help
+  enter/space:                   forward one page
+  [n]k/j:                        forward or back [n] pages
+  [n]G:                          go to page [n]
+  G:                             go to last page
+  gg:                            go to first page
+  /<query>:                      search text for <query>
+  [n]n:                          go to next search result
+  [n]N:                          go to previous search result
+  [n]p:                          print [n copies of] document
+  [n]y:                          yank [n] pages forward and save as pdf
+  yy:                            yank current page and save as pdf
+  [n]+:                          zoom in
+  [n]-:                          zoom out
+  =:                             fit screen
+  c:                             crop margins 
+  m[r]:                          store current page in register [r]
+  '[r]:                          go to page stored in register [r]
+  g'[r]:                         go to to page in register [r] 
+  y'[r]:                         yank from current page to mark and save as pdf
+  r:                             refresh display
+  R:                             reload document
+  [n]r:                          rotate [n] degrees (0=0;1=90;2=180;3=270)
+  t:                             view entire document as text in less
+  T:                             view current page as text in less
+  M:                             remake document
+  a:                             annotate in split pane
+  q:                             quit
+  h:                             view this help
+  u:                             user definable function
 
 These commands are all set by the `keys()` function, so they are easy enough
-to change as you see fit.
+to change as you see fit. You can override them in the config file if you
+want.
 
-There is also rudimentary undocumented support for `:` style commands, e.g.,
+There is also mostly undocumented support for `:` style commands, e.g.,
 
-    :first                                go to first page
-    :last                                 go to last page
-    :goto 20                              go to page 20
-    :print <copies> <page-range>
-    :gui                                  open the document in your default
-                                             PDF viewer (e.g., Preview.app)
-    :marks                                list marks
-    :quit                                 quit
+  :first                                go to first page
+  :last                                 go to last page
+  :goto 20                              go to page 20
+  :print <copies> <page-range>
+  :yank <page-range>
+  :search <query>
+  :next <count>
+  :gui                                  open the document in your default viewer
+  :text all
+  :text page
+  :refresh
+  :reload
+  :rotate 90
+  :crop
+  :marks                                list marks
+  :quit                                 quit
 
 This is mostly useless from within the software, because bash's `read` command
-doesn't support customizable autocompletion when called within scripts.
+doesn't support customizable autocompletion when called within scripts. But it
+is useful when using `tpdfc`.
 
 # Controlling `termpdf` using `tpdfc`
 
