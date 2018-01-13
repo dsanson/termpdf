@@ -201,14 +201,15 @@ function keys() {
             mark="m"
             reference="'"
         fi
-        search="/" # search not implemented
-        next="n" # search not implemented
-        previous="N" # search not implemented
+        search="/" 
+        next="n"  
+        previous="N" 
         refresh="r"
         reload="R"
         make="M"
         print="p"
         crop="c"
+        n_rotate="r"
         notes="a" 
         text_all="t"
         text_page="T"
@@ -228,6 +229,7 @@ function keys() {
 function first_setup() {
     page_number=1
     zoom=100
+    rotation=0
     cropped=""
     tmp_dir=$(mktemp -d)
     keys
@@ -471,6 +473,11 @@ function get_pdf_page_dimensions() {
    page_size=$(pdfinfo -box "$1" | grep 'Page size')
    page_width=$(echo "$page_size" | awk '{print $3}')
    page_height=$(echo "$page_size" | awk '{print $5}')
+   if [[ "$rotation" == "90" || "$rotation" == "270" ]]; then
+       pw=$page_width
+       page_width=$page_height
+       page_height=$pw
+   fi
 }
 
 
@@ -478,6 +485,11 @@ function get_image_dimensions() {
    page_size=$(identify "$1" | awk 'match($0, /[0-9]+x[0-9]+/) {print substr($0, RSTART, RLENGTH)}')
    page_width=${page_size%x*}
    page_height=${page_size#*x}
+   if [[ "$rotation" == "90" || "$rotation" == "270" ]]; then
+       pw=$page_width
+       page_width=$page_height
+       page_height=$pw
+   fi
 }
 
 function calculate_target_dimensions() {
@@ -502,11 +514,15 @@ function extract_pdf_page_to_png_gs() {
     else
        kitty_opts="$kitty_opts --scale-up"
     fi
-    current_page_image="${tmp_dir}/${1}${3}${target_width}x${target_height}.png" 
+    current_page_image="${tmp_dir}/${1}${3}${target_width}x${target_height}x${rotation}.png" 
     if [[ ! -f "$current_page_image" ]]; then
        gs_opts="$gs_opts -sDEVICE=png16m -dUseCropBox -r200 -dTextAlphaBits=4 -q"
        gs $gs_opts -o "${tmp_dir}/compressed.png"  "$current_page_pdf"
-       convert  "${tmp_dir}/compressed.png"  -define png:compression-level=0 -define png:compression-filter=0  -density 200 "$current_page_image" 2> /dev/null 
+       convert_opts="-define png:compression-level=0 -define png:compression-filter=0  -density 200"
+       if [[ "$rotation" == 90 || "$rotation" == 180 ]]; then
+           convert_opts="$convert_opts -rotate 180"
+       fi
+       convert  "${tmp_dir}/compressed.png" $convert_opts "$current_page_image" 2> /dev/null 
     fi
     image="$current_page_image"  
 }
@@ -522,7 +538,7 @@ function extract_djvu_page_to_png_gs() {
     else
        kitty_opts="$kitty_opts --scale-up"
     fi
-    current_page_image="${tmp_dir}/${1}${3}${target_width}x${target_height}.png" 
+    current_page_image="${tmp_dir}/${1}${3}${target_width}x${target_height}x${rotation}.png" 
     if [[ ! -f "$current_page_image" ]]; then
        gs_opts="$gs_opts -sDEVICE=png16m -dUseCropBox -r200 -dTextAlphaBits=4 -q"
        gs $gs_opts -o "${tmp_dir}/compressed.png"  "$current_page_pdf"
@@ -541,11 +557,12 @@ function extract_tiff_page() {
     else
        kitty_opts="$kitty_opts --scale-up"
     fi
-    if [[ ! -f "${tmp_dir}/${1}${3}${target_width}x${target_height}.png" ]]; then
-       tif_convert_opts="$tif_convert_opts -density 200 -define png:compression-level=0 -define png:compression-filter=0 -antialias"
-       convert "${tmp_dir}/${1}${3}.tiff" $tif_convert_opts "${tmp_dir}/${1}${3}${target_width}x${target_height}.png"
+    current_page_image="${tmp_dir}/${1}${3}${target_width}x${target_height}x${rotation}.png" 
+    if [[ ! -f "$current_page_image" ]]; then
+       tif_convert_opts="$tif_convert_opts -density 200 -define png:compression-level=0 -define png:compression-filter=0 -antialias -rotate $rotation"
+       convert "${tmp_dir}/${1}${3}.tiff" $tif_convert_opts "$current_page_image"
     fi
-    image="${tmp_dir}/${1}${3}${target_width}x${target_height}.png"  
+    image="$current_page_image"
 }
 
 function choose_from_directory() {
@@ -556,12 +573,12 @@ function choose_from_directory() {
     else
           kitty_opts="$kitty_opts --scale-up"
     fi
-    tmpout="${tmp_dir}$(echo "$image" | tr '/' '_')${target_width}x${target_height}.png" 
-    if [[ ! -f "$tmpout" ]]; then
-        image_convert_opts="$image_convert_opts -density 200 -define png:compression-level=0 -define png:compression-filter=0"
-        convert "$image" $image_convert_opts "$tmpout"
+    current_page_image="${tmp_dir}$(echo "$image" | tr '/' '_')${target_width}x${target_height}.png" 
+    if [[ ! -f "$current_page_image" ]]; then
+        image_convert_opts="$image_convert_opts -density 200 -rotate $rotation -define png:compression-level=0 -define png:compression-filter=0"
+        convert "$image" $image_convert_opts "$current_page_image"
     fi
-    image="$tmpout"
+    image="$current_page_image"
 }
 
 ###########################################################################
@@ -596,10 +613,12 @@ function extract_page() {
             else
                kitty_opts="$kitty_opts --scale-up"
             fi
-            image_convert_opts="$image_convert_opts -density 200 -define png:compression-level=0 -define png:compression-filter=0"
-            tmpout="${tmp_dir}$(echo "$image" | tr '/' '_')${target_width}x${target_height}.png" 
-            convert "$image" $image_convert_opts "$tmpout"
-            image="$tmpout"
+            current_page_image="${tmp_dir}$(echo "$image" | tr '/' '_')${target_width}x${target_height}x${rotation}.png" 
+            if [[ ! -f "$current_page_image" ]]; then
+                image_convert_opts="$image_convert_opts -density 200 -rotate $rotation -define png:compression-level=0 -define png:compression-filter=0"
+                convert "$image" $image_convert_opts "$current_page_image"
+            fi
+            image="$current_page_image"
             #crop_image "$1" "$3" "$2"
             ;;
         *)
@@ -820,6 +839,7 @@ ${goto_m}${reference}[r]:   | go to to page in register [r]
 ${yank}${reference}[r]:     | yank from current page to mark and save as pdf
 $refresh:                   | refresh display
 $reload:                    | reload document
+[n]$n_rotate:               | rotate [n] degrees (0=0;1=90;2=180;3=270)
 $text_page:                 | view page as text
 $text_all:                  | view entire document as text
 $make:                      | remake document
@@ -940,6 +960,12 @@ function crop() {
     esac
 }
 
+function rotate() {
+    rotation="$1"
+    clear
+    goto "$page_number"
+}
+
 function search() {
     query="$@"
     case $filetype in
@@ -1033,6 +1059,9 @@ function process_command_mode(){
         yank)
             # yank page page
             yank ${command[1]} ${command[2]}
+            ;;
+        rotate)
+            rotate "${command[1]}"
             ;;
         search)
             # search string
@@ -1231,7 +1260,25 @@ function read_command() {
             quit
             ;;
         "$refresh")
-            refresh
+           if [[ "$count" == '' ]]; then
+                refresh
+            fi
+            ;;&
+        "$n_rotate")
+            case "$count" in
+                0)
+                    rotate 0
+                    ;;
+                1|90)
+                    rotate 90
+                    ;;
+                2|180)
+                    rotate 180
+                    ;;
+                3|270)
+                    rotate 270
+                    ;;
+            esac
             ;;
         "$reload")
             reload
