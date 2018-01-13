@@ -134,7 +134,7 @@ function get_total_number_of_pages() {
             fi
             ;;
         directory)
-            total_pages=$(find "$1" -type f -exec file {} \; | awk -F: '{if ($2 ~/image/) print $1}' | cat -n | awk 'END{print $1}')
+            total_pages=$(find "$1" -type f $depth_arg -exec file {} \; | awk -F: '{if ($2 ~/image/) print $1}' | cat -n | awk 'END{print $1}')
             ;;
         *)
             total_pages=1 
@@ -456,7 +456,7 @@ function split_at_marks() {
 function crop_image() {
     if [[ "$cropped" == "cropped"  ]]; then
         if [[ ! -f "${tmp_dir}/${1}${3}cropped.${2}" ]]; then
-            convert -trim -fuzz "${crop_aggression}%" "$image" "${tmp_dir}/${1}${3}cropped.${2}"
+            convert -trim -fuzz "${crop_aggression}%" "$image" $image_convert_opts "${tmp_dir}/${1}${3}cropped.${2}" 2> /dev/null
         fi
         image="${tmp_dir}/${1}${3}cropped.${2}"
     fi
@@ -466,7 +466,7 @@ function crop_image_in_directory() {
     if [[ "$cropped" == "cropped" ]]; then
         image_ext=${image##*.}
         image_root=${image%%.$image_ext}
-        convert -trim -fuzz "${crop_aggression}%" "$image" "${tmp_dir}/${image_root}cropped.${image_ext}"
+        convert -trim -fuzz "${crop_aggression}%" "$image" $image_convert_opts "${tmp_dir}/${image_root}cropped.${image_ext}" 2>/dev/null
         image="${tmp_dir}/${image_root}cropped.${image_ext}"
     fi
 }
@@ -606,7 +606,7 @@ function extract_tiff_page() {
 }
 
 function choose_from_directory() {
-    image="$(find "${1}" -type f -exec file {} \; | awk -F: '{if ($2 ~/image/) print $1}' | sort | sed ${2}'q;d')"
+    image="$(find "${1}" -type f $depth_arg -exec file {} \; | awk -F: '{if ($2 ~/image/) print $1}' | sort | sed ${2}'q;d')"
     if [[ $pxwidth -ne 0 ]]; then
           get_image_dimensions "$image"
           calculate_target_dimensions
@@ -850,13 +850,17 @@ function display_bar() {
 ###########################################################################
 
 function clihelp() {
-    echo "$(basename $0) <options> <file>"
-    echo " -sixel:  use libsixel to (badly) display graphics"     
-    echo " -kitty:  force using kitty to display graphics"
-    echo " -iterm:  force using iterm to display graphics"
-    echo " -h:      help"
-    echo
-    print_list_of_commands
+    column -t -s '%' <<EOG
+
+$(basename $0) <options> <file/directory>
+  -d n, --depth N    % how deep to search directories for images
+  -sixel             % use libsixel to (badly) display graphics     
+  -kitty             % force using kitty to display graphics
+  -iterm             % force using iterm to display graphics
+  -k                 % list keyboard shortcuts
+  -h, --help         % view this help
+
+EOG
     exit
 }
 
@@ -888,9 +892,9 @@ function print_list_of_commands() {
   [n]$print:                  | print [n copies of] document
   [n]$yank:                   | yank [n] pages forward and save as pdf
   $yank$yank:                 | yank current page and save as pdf
-  [n]$zoom_in:                | zoom in
-  [n]$zoom_out:               | zoom out
-  $zoom_100:                  | fit screen
+  [n]$zoom_in:                | zoom in (currently broken)
+  [n]$zoom_out:               | zoom out (currently broken)
+  $zoom_100:                  | fit screen (currently broken)
   $crop:                      | crop margins 
   $mark[r]:                   | store current page in register [r]
   $reference[r]:              | go to page stored in register [r]
@@ -1503,6 +1507,18 @@ while [[ "$1" == '-'* ]]; do
             protocol="iterm"
             shift
             ;;
+        -d|--depth)
+            if ! [[ "$2" =~ ^[0-9]+$ ]] ; then
+                error_and_exit "depth must be an integer"
+            else
+                depth_arg="-maxdepth $2"
+                shift 2
+            fi
+            ;;
+        -k)
+            print_list_of_commands
+            exit
+            ;; 
         -h*|--h*)
             clihelp
             ;;
@@ -1521,11 +1537,9 @@ if [[ "$1" =~ ^http[s]?://.*$ ]]; then
     curl -L -O -J "$1"
     document=$(ls -t | head -n 1)
 elif [[ -z "$1"  ]]; then
-    echo "no document specified"
-    echo
-    clihelp
+    error_and_exit "no document specified"
 elif [[ ! -r "$1" ]]; then
-    error_and_exit "cannot read $1"
+    error_and_exit "$1 is unreadable"
 else
     document="$1"
 fi
