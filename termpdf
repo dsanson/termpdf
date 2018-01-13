@@ -237,16 +237,16 @@ function first_setup() {
 
 function second_setup() {
 
-    # check for kitty image support
     kitty="kitty" 
-    if [[ "$protocol" == "sixel" ]]; then
-        message="$protocol"
-    elif $kitty icat --detect-support 2> ${tmp_dir}/support; then
-        protocol="kitty"
-        support=$(cat ${tmp_dir}/support)
-        kitty_opts="--transfer-mode=$support "
-    else
-        protocol="iterm"
+    # set protocol to kitty if it is supported
+    if [[ -z "$protocol" ]]; then
+        if $kitty icat --detect-support 2> ${tmp_dir}/support; then
+            protocol="kitty"
+            support=$(cat ${tmp_dir}/support)
+            kitty_opts="--transfer-mode=$support "
+        else
+            protocol="iterm"
+        fi
     fi
 
     # check for terminal_dimensions support
@@ -376,8 +376,7 @@ function error_and_exit() {
     if [[ -f "$HOME/.config/termpdf/exithook" ]]; then
         source "$HOME/.config/termpdf/exithook"
     fi
-    >&2 echo "$(basename $0) error:"
-    >&2 echo "    $@"
+    >&2 echo "$@"
     exit 1
 }
 
@@ -853,6 +852,9 @@ function display_bar() {
 function clihelp() {
     echo "$(basename $0) <options> <file>"
     echo " -sixel:  use libsixel to (badly) display graphics"     
+    echo " -kitty:  force using kitty to display graphics"
+    echo " -iterm:  force using iterm to display graphics"
+    echo " -h:      help"
     echo
     print_list_of_commands
     exit
@@ -1404,6 +1406,9 @@ function display_document() {
         fileroot="${document%.*}"
 
         case "$filetype" in
+            pdf|PDF|djvu|DJVU|tif|TIF|tiff|TIFF)
+                :
+                ;;
             cbr|CBR|rar|RAR)
                 if command -v unrar &> /dev/null; then
                     mkdir "${tmp_dir}/orig"
@@ -1451,6 +1456,8 @@ function display_document() {
                 document="${document%.*}.pdf"
                 display_document "$document"
                 ;;
+            *)
+                error_and_exit "$filetype not supported"
         esac
     fi
     get_total_number_of_pages "$document"
@@ -1482,18 +1489,43 @@ first_setup
 
 # a few basic cli options
 
-if [[ "$1" == "-sixel" ]]; then
-    protocol="sixel"
-    shift
-fi
+while [[ "$1" == '-'* ]]; do
+   case "$1" in
+       -sixel|--sixel)
+            protocol="sixel"
+            shift
+            ;;
+        -kitty|--kitty)
+            protocol="kitty"
+            shift
+            ;;
+        -iterm|--iterm)
+            protocol="iterm"
+            shift
+            ;;
+        -h*|--h*)
+            clihelp
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            error_and_exit "unrecognized option: $1"
+            ;;
+    esac
+done
 
 if [[ "$1" =~ ^http[s]?://.*$ ]]; then
     cd "${tmp_dir}"
     curl -L -O -J "$1"
     document=$(ls -t | head -n 1)
-elif [[ -z "$1" || ! -r "$1" ]]; then
+elif [[ -z "$1"  ]]; then
+    echo "no document specified"
+    echo
     clihelp
-    exit
+elif [[ ! -r "$1" ]]; then
+    error_and_exit "cannot read $1"
 else
     document="$1"
 fi
