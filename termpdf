@@ -257,7 +257,7 @@ function second_setup() {
     # override these settings by creating a config file
     case $OSTYPE in
         darwin*)
-            guiviewer="open -a"
+            guiviewer="open"
             ;;
         linux*)
             guiviewer="xdg-open"
@@ -955,7 +955,7 @@ function gui() {
     if [[ "$guiviewer" == "unknown" ]]; then
         message="no gui viewer set"
     else
-       "$guiviewer" "$1"
+       $guiviewer "$1"
    fi
 }
 
@@ -1049,7 +1049,7 @@ function user1() {
 
 function command_mode() {
     tput cup $height 0
-    read -p ':' -ea command
+    read  -s -p ':' -ea command
     process_command_mode  
 }
 
