@@ -808,8 +808,10 @@ function display_bar() {
 ###########################################################################
 
 function clihelp() {
-    echo "Usage: $(basename $0) <file>"
-    echo "       $(basename $0) <directory>"
+    echo "$(basename $0) <options> <file>"
+    echo " -sixel:  use libsixel to (badly) display graphics"     
+    echo
+    print_list_of_commands
     exit
 }
 
@@ -817,41 +819,50 @@ function clihelp() {
 function help() {
     clear
     tput cup 0 0
-    echo "Keyboard commands"
-    echo
-    column -t -s '|' <<EOH
+    print_list_of_commands
 
-enter/space:                | forward one page
-[n]$back/$forward:          | forward or back [n] pages
-[n]$n_goto:                 | go to page [n]
-$n_goto:                    | go to last page
-$goto_m$goto_m:             | go to first page
-[n]$print:                  | print [n copies of] document
-[n]$yank:                   | yank [n] pages forward and save as pdf
-$yank$yank:                 | yank current page and save as pdf
-[n]$zoom_in:                | zoom in
-[n]$zoom_out:               | zoom out
-$zoom_100:                  | fit screen
-$crop:                      | crop margins 
-$mark[r]:                   | store current page in register [r]
-$reference[r]:              | go to page stored in register [r]
-${goto_m}${reference}[r]:   | go to to page in register [r] 
-${yank}${reference}[r]:     | yank from current page to mark and save as pdf
-$refresh:                   | refresh display
-$reload:                    | reload document
-[n]$n_rotate:               | rotate [n] degrees (0=0;1=90;2=180;3=270)
-$text_page:                 | view page as text
-$text_all:                  | view entire document as text
-$make:                      | remake document
-$notes:                     | annotate in split pane
-$quit:                      | quit
-$help:                      | view this help
-$user1:                     | $user1_blurb
-
-EOH
     echo
     read -p "Press any key to return to document" -n 1 -s dummy
     clear
+}
+
+function print_list_of_commands() {
+
+    echo "Keyboard shortcuts:"
+    echo
+    column -t -s '|' <<EOH
+
+  enter/space:                | forward one page
+  [n]$back/$forward:          | forward or back [n] pages
+  [n]$n_goto:                 | go to page [n]
+  $n_goto:                    | go to last page
+  $goto_m$goto_m:             | go to first page
+  ${search}<query>:           | search text for <query>
+  [n]$next:                   | go to next search result
+  [n]$previous:               | go to previous search result
+  [n]$print:                  | print [n copies of] document
+  [n]$yank:                   | yank [n] pages forward and save as pdf
+  $yank$yank:                 | yank current page and save as pdf
+  [n]$zoom_in:                | zoom in
+  [n]$zoom_out:               | zoom out
+  $zoom_100:                  | fit screen
+  $crop:                      | crop margins 
+  $mark[r]:                   | store current page in register [r]
+  $reference[r]:              | go to page stored in register [r]
+  ${goto_m}${reference}[r]:   | go to to page in register [r] 
+  ${yank}${reference}[r]:     | yank from current page to mark and save as pdf
+  $refresh:                   | refresh display
+  $reload:                    | reload document
+  [n]$n_rotate:               | rotate [n] degrees (0=0;1=90;2=180;3=270)
+  $text_all:                  | view entire document as text in less
+  $text_page:                 | view current page as text in less
+  $make:                      | remake document
+  $notes:                     | annotate in split pane
+  $quit:                      | quit
+  $help:                      | view this help
+  $user1:                     | $user1_blurb
+
+EOH
 }
 
 ###########################################################################
@@ -1417,6 +1428,8 @@ trap 'error_and_exit "interrupted"' SIGINT
 trap clean_and_exit SIGTERM
 
 first_setup
+
+# a few basic cli options
 
 if [[ "$1" == "-sixel" ]]; then
     protocol="sixel"
