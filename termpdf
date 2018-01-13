@@ -233,6 +233,8 @@ function first_setup() {
     cropped=""
     tmp_dir=$(mktemp -d)
     keys
+    shopt -s extglob
+    supported_image_formats="@(jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF|gifv|GIFV|bmp|BMP|svg|SVG|pbm|PBM|pnm|PNM|ico|ICO|pcd|PCD|pict|PICT|pes|PES|psd|PSD|ttf|TTF|xcf|XCF)"
 }
 
 function second_setup() {
@@ -646,7 +648,7 @@ function extract_page() {
             choose_from_directory "$1" "$3"
             #crop_image_in_directory
             ;;
-        jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF|gifv|GIFV|bmp|BMP)
+        ${supported_image_formats})
             image="$document"
             if [[ $pxwidth -ne 0 ]]; then
                get_image_dimensions "$image"
@@ -664,7 +666,7 @@ function extract_page() {
             #crop_image "$1" "$3" "$2"
             ;;
         *)
-            error_and_exit "$filetype not supported."
+            error_and_exit "$filetype not supported. (should have been caught earlier)"
             ;;
     esac
 }
@@ -1010,7 +1012,7 @@ function crop() {
             fi
             reload
             ;;
-        jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF|gifv|GIFV|bmp|BMP)
+        ${supported_image_formats})
             if [[ "$cropped" == "" ]]; then
                 crop_aggression="$1"
                 cropped="cropped"
@@ -1460,8 +1462,12 @@ function display_document() {
                 document="${document%.*}.pdf"
                 display_document "$document"
                 ;;
+            ${supported_image_formats})
+                :
+                ;;
             *)
                 error_and_exit "$filetype not supported"
+                ;;
         esac
     fi
     get_total_number_of_pages "$document"
