@@ -130,20 +130,45 @@ Usage
 =====
 
 ```.bash
-$ termpdf <option> <file> 
+$ termpdf -h
+termpdf <options> <file/directory>
+  -d n, --depth N                    how deep to search directories for images
+  -sixel                             use libsixel to (badly) display graphics     
+  -kitty                             force using kitty to display graphics
+  -iterm                             force using iterm to display graphics
+  -k                                 list keyboard shortcuts
+  -h, --help                         view this help
 ```
 
-Right now, there is only one option: `-sixel`, which enables the (very bad)
-sixel support.
+`<file/directory>` should be a file in one of the supported formats or a path
+to a directory containing images.
 
-File type is determined by extension. Supported formats include: PDF, DJVU, TIF,
-CBR, CBZ, CBT, JPG, JPEG, PNG, GIF, and BMP.
+Format is determined by extension. Supported multipage are formats: 
 
-`termpdf` will treat a directory as though it is a document, and each image
-file below the directory as a page. It will do the same with RAR, ZIP, and TAR
-archives.
+    PDF, DJVU, TIF, CBR, CBZ, CBT
 
-While viewing a file, the default key commands are:
+Supported single image formats are
+
+    JPG, JPEG,  PNG, GIF, BMP, SVG, PBM, PNM, ICO, PCD, PICT, PES, PSD, TTF, XCF
+
+It should be trivial to add support for any format that Imagemagick
+supports that doesn't require special handling.
+
+Directories, along with common archive formats (ZIP, RAR, and TAR), are
+treated as multipage documents. Directories are searched recursively by
+`find`, and displayed in the order found. The `--depth` option specifies the
+depth of `find`'s recursive search.
+
+By default, `termpdf` uses Kitty's image rendering if it is available, and
+otherwise tries to use iTerm's image rendering. You can override this behavior
+by specifying one of `-sixel`, `-kitty`, or `-iterm`.
+
+Keyboard Shortcuts
+------------------
+
+```bash
+$ termpdf -k
+Keyboard shortcuts:
 
   enter/space:                   forward one page
   [n]k/j:                        forward or back [n] pages
@@ -156,9 +181,9 @@ While viewing a file, the default key commands are:
   [n]p:                          print [n copies of] document
   [n]y:                          yank [n] pages forward and save as pdf
   yy:                            yank current page and save as pdf
-  [n]+:                          zoom in
-  [n]-:                          zoom out
-  =:                             fit screen
+  [n]+:                          zoom in (currently broken)
+  [n]-:                          zoom out (currently broken)
+  =:                             fit screen (currently broken)
   c:                             crop margins 
   m[r]:                          store current page in register [r]
   '[r]:                          go to page stored in register [r]
@@ -174,9 +199,9 @@ While viewing a file, the default key commands are:
   q:                             quit
   h:                             view this help
   u:                             user definable function
+```
 
-These commands are all set by the `keys()` function, so they are easy enough
-to change as you see fit. You can override them in the config file if you
+These commands are all set by the `keys()` function. You can override them in the config file if you
 want.
 
 There is also mostly undocumented support for `:` style commands, e.g.,
@@ -221,8 +246,8 @@ To list all available instances,
 
 # Configuration files
 
-You can put any commands you want into `$HOME/.config/termpdf/config`, and
-they will be run during the setup process. This allows you, among other
+You can put any commands you want into `$HOME/.config/termpdf/config`, which
+is sourced during the setup process. This allows you, among other
 things, to override the key mappings and tweak the print settings.
 
 You can also put commands in `$HOME/.config/termpdf/exithook`, which will be
