@@ -502,15 +502,40 @@ function get_image_dimensions() {
    fi
 }
 
+
 function calculate_target_dimensions() {
    dim=$(echo "scale=3; sc1=$pxwidth/$page_width; sc2=$pxheight/$page_height; if (sc1<sc2) (sc=sc1)  else (sc=sc2); $page_width * sc; $page_height * sc" | bc -l)
    target_width=$(echo $dim | awk '{print $2}')
    target_height=$(echo $dim | awk '{print $3}')
    target_width=${target_width%.*}
    target_height=${target_height%.*}
+}
+
+# function calculate_crops() {
+#     zoom="1"
+#     xoffset=0
+#     yoffset=0
+#     target_width=$(echo "scale=0; $target_width * $zoom" | bc -l)
+#     target_height=$(echo "scale=0; $target_height * $zoom" | bc -l)
+#     target_width=${target_width%.*}
+#     target_height=${target_height%.*}
+#     if [[ "$target_width" > "$pxwidth" ]]; then 
+#         cropped_width=$pxwidth
+#     else
+#         cropped_width=$target_width
+#     fi
+#     if [[ "$target_height" > "$pxheight" ]]; then 
+#         cropped_height=$pxheight
+#     else
+#         cropped_height=$target_height
+#     fi
+# }
+
+set_conversion_options() {
    gs_opts="$gs_opts -dPDFFitPage=true -g${target_width}x${target_height}"
    tif_convert_opts="-resize ${target_width}x${target_height}"
    image_convert_opts="-resize ${target_width}x${target_height}"
+   #convert_opts="-crop ${cropped_width}x${cropped_height}+${xoffset}x${yoffset}"
 }
 
 function extract_pdf_page_to_png_gs() {
@@ -521,6 +546,8 @@ function extract_pdf_page_to_png_gs() {
     if [[ $pxwidth -ne 0 ]]; then
        get_pdf_page_dimensions "$current_page_pdf"
        calculate_target_dimensions
+      # calculate_crops
+       set_conversion_options
     else
        kitty_opts="$kitty_opts --scale-up"
     fi
@@ -528,11 +555,11 @@ function extract_pdf_page_to_png_gs() {
     if [[ ! -f "$current_page_image" ]]; then
        gs_opts="$gs_opts -sDEVICE=png16m -dUseCropBox -r200 -dTextAlphaBits=4 -q"
        gs $gs_opts -o "${tmp_dir}/compressed.png"  "$current_page_pdf"
-       convert_opts="-define png:compression-level=0 -define png:compression-filter=0  -density 200"
+       convert_opts="$convert_opts -define png:compression-level=0 -define png:compression-filter=0  -density 200"
        if [[ "$rotation" == 90 || "$rotation" == 180 ]]; then
            convert_opts="$convert_opts -rotate 180"
        fi
-       convert  "${tmp_dir}/compressed.png" $convert_opts "$current_page_image" 2> /dev/null 
+       convert  "${tmp_dir}/compressed.png" $convert_opts "$current_page_image"  2> /dev/null 
     fi
     image="$current_page_image"  
 }
@@ -545,6 +572,8 @@ function extract_djvu_page_to_png_gs() {
     if [[ $pxwidth -ne 0 ]]; then
        get_pdf_page_dimensions "$current_page_pdf"
        calculate_target_dimensions
+      # calculate_crops
+       set_conversion_options
     else
        kitty_opts="$kitty_opts --scale-up"
     fi
@@ -552,7 +581,8 @@ function extract_djvu_page_to_png_gs() {
     if [[ ! -f "$current_page_image" ]]; then
        gs_opts="$gs_opts -sDEVICE=png16m -dUseCropBox -r200 -dTextAlphaBits=4 -q"
        gs $gs_opts -o "${tmp_dir}/compressed.png"  "$current_page_pdf"
-       convert  "${tmp_dir}/compressed.png"  -define png:compression-level=0 -define png:compression-filter=0  -density 200 "$current_page_image" 2> /dev/null 
+       convert_opts="$convert_opts -define png:compression-level=0 -define png:compression-filter=0  -density 200"
+       convert  "${tmp_dir}/compressed.png" $convert_opts "$current_page_image"  2> /dev/null 
     fi
     image="$current_page_image"  
 }
@@ -564,6 +594,7 @@ function extract_tiff_page() {
     if [[ $pxwidth -ne 0 ]]; then
        get_image_dimensions "${tmp_dir}/${1}${3}.tiff"
        calculate_target_dimensions
+       set_conversion_options
     else
        kitty_opts="$kitty_opts --scale-up"
     fi
@@ -580,6 +611,7 @@ function choose_from_directory() {
     if [[ $pxwidth -ne 0 ]]; then
           get_image_dimensions "$image"
           calculate_target_dimensions
+          set_conversion_options
     else
           kitty_opts="$kitty_opts --scale-up"
     fi
@@ -620,6 +652,7 @@ function extract_page() {
             if [[ $pxwidth -ne 0 ]]; then
                get_image_dimensions "$image"
                calculate_target_dimensions
+               set_conversion_options
             else
                kitty_opts="$kitty_opts --scale-up"
             fi
