@@ -255,7 +255,17 @@ function second_setup() {
     fi
 
     # override these settings by creating a config file
-    guiviewer="Preview.app" 
+    case $OSTYPE in
+        darwin*)
+            guiviewer="open -a"
+            ;;
+        linux*)
+            guiviewer="xdg-open"
+            ;;
+        *)
+            guiviewer="unknown"
+            ;;
+    esac
     print_command="lp"
     print_options="-o sides=two-sided-long-edge"
     make_command=""
@@ -942,7 +952,11 @@ function remake() {
 
 # open the document in your preferred gui pdf viewer
 function gui() {
-    open -a "$guiviewer" "$1"
+    if [[ "$guiviewer" == "unknown" ]]; then
+        message="no gui viewer set"
+    else
+       "$guiviewer" "$1"
+   fi
 }
 
 function crop() {
@@ -1385,9 +1399,13 @@ function display_document() {
                 display_document $document
                 ;;
              docx|DOCX|odt|ODT|XLSX|xlsx|PPTX|pptx|ODS|ods|ODP|odp)
-                 soffice="/Applications/LibreOffice.app/Contents/MacOS/soffice" 
-                 if [[ ! -x "$soffice" ]]; then
-                     error_and_exit "Install LibreOffice to view $filetype files."
+                 if hash soffice 2> /dev/null; then
+                     soffice="soffice"
+                 else
+                     soffice="/Applications/LibreOffice.app/Contents/MacOS/soffice" 
+                     if [[ ! -x "$soffice" ]]; then
+                         error_and_exit "To view $filetype files, install LibreOffice and ensure that soffice is in your path."
+                     fi
                  fi
                 $soffice --headless --convert-to pdf --outdir ${tmp_dir} "$document" & 
                 if [[ "$protocol" == "iterm" ]]; then
