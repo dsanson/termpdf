@@ -1538,9 +1538,10 @@ while [[ "$1" == '-'* ]]; do
     esac
 done
 
-if [[ "$1" =~ ^http[s]?://.*$ ]]; then
+regex='(https?|ftp|file)://[-A-Za-z0-9\+&@#/%?=~_|!:,.;]*[-A-Za-z0-9\+&@#/%=~_|]'
+if [[ "$1" =~ $regex ]]; then
     cd "${tmp_dir}"
-    curl -L -O -J "$1"
+    curl --silent -L -O -J "$1"
     document=$(ls -t | head -n 1)
 elif [[ -z "$1"  ]]; then
     error_and_exit "no document specified"
