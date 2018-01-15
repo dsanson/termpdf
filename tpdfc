@@ -8,7 +8,7 @@ function help(){
     echo "    options:"
     echo "       -n N    if there is more than one instance of termpdf"
     echo "               running, communicate with the Nth instance."
-    echo "               (As ordered by pdfgrep -f termpdf)"
+    echo "               (As ordered by pgrep -f termpdf)"
     echo "       -p PID  communicate with the instance of termpdf with"
     echo "               the specified PID"
     echo "       -l      list all running instances of termpdf"
