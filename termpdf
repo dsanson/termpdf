@@ -1090,12 +1090,11 @@ function user1() {
 
 function command_mode() {
     tput cup $height 0
-    read  -s -p ':' -ea command
+    read -p ':' -ea command
     process_command_mode  
 }
 
 function process_command_mode(){
-    echo ${command[0]}
     case ${command[0]} in
         q|qu|qui|quit)
             quit
@@ -1186,7 +1185,11 @@ function process_command_mode(){
             zoom="${command[1]}"
             ;;
         text)
-            text "$1"
+            text "${command[1]}"
+            ;;
+        status)
+            message="${command[1]}"
+            display_bar
             ;;
         help)
             help
