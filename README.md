@@ -30,6 +30,41 @@ Running in iTerm:
 Requirements
 ============
 
+Let me start with the tl;dr instructions. 
+
+Make sure you are running a recent version of Kitty or iTerm.
+
+Install `terminal dimensions`:
+
+~~~
+git clone https://github.com/dsanson/terminal_dimensions
+cd terminal_dimensions
+gcc terminal_dimensions.c -o terminal_dimensions
+mv terminal_dimensions /usr/local/bin
+~~~
+
+Install dependencies. On OSX,
+
+```.bash
+brew install poppler djvulibre libtiff unrar imagemagick bash
+```
+
+On Debian,
+
+```.bash
+apt install ghostscript bc libtiff5 unrar imagemagick poppler-utils
+```
+
+Download the `termpdf`, make it executable, and put it in your path:
+
+```.bash
+git clone https://github.com/dsanson/termpdf
+cd termpdf
+chmod u+x termpdf
+cd /usr/local/bin
+ln -s /path/to/termpdf
+```
+
 Terminal Emulator
 -----------------
 
@@ -124,7 +159,8 @@ Installation
 ============
 
 `termpdf` is a bash script. Put it somewhere in your path and make sure it has
-the appropriate permissions (i.e., `chmod u+x termpdf`). 
+the appropriate permissions (i.e., `chmod u+x termpdf`).
+
 
 Usage
 =====
