@@ -33,7 +33,7 @@ Requirements
 Terminal Emulator
 -----------------
 
-You will need iTerm version 2.9 or later, or a Kitty version later than 0.6.1,
+You will need iTerm version 2.9 or later, or Kitty, version greater than 0.6.1,
 or, if you want to play around, a terminal with sixel support. iTerm support
 has been around for awhile. It should be pretty stable if a bit slow. Kitty
 support is new and significantly faster than iTerm---especially if you use the
