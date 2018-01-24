@@ -7,10 +7,10 @@ CBZ and JPG and PNG and GIF and BMP) viewer that runs in your terminal.
 Right now, it runs in
 
 -   [iTerm](https://iterm2.com/) 2.9 or later
-
-And it has experimental support for
-
 -   [kitty](https://github.com/kovidgoyal/kitty)
+
+And has experimental support for
+
 -   [libsixel](https://github.com/saitoha/libsixel)
 
 It is a ridiculous hack---a bash script wrapped around some special terminal
@@ -36,8 +36,8 @@ Terminal Emulator
 You will need iTerm version 2.9 or later, or a Kitty version later than 0.6.1,
 or, if you want to play around, a terminal with sixel support. iTerm support
 has been around for awhile. It should be pretty stable if a bit slow. Kitty
-support is new and probably a bit buggy. But it is also faster than
-iTerm---especially if you use the `terminal_dimensions` helper app.
+support is new and significantly faster than iTerm---especially if you use the
+`terminal_dimensions` helper app.
 
 To use with Kitty, be sure that the `kitty` executable is in your path.
 
