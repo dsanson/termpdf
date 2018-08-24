@@ -75,6 +75,7 @@ function print_image_iterm() {
 }
 
 function print_image_kitty() {
+   $kitty icat --clear
    $kitty icat $kitty_opts --place "${width}x${height}@0x0" "$1"
 }
 
