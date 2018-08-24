@@ -93,13 +93,20 @@ function get_pane_size() {
     else
         width=$(tput cols)
         height=$(tput lines)
-        pxwidth=0
+        if [[ "$protocol" == "kitty" ]]; then
+            # Expected in the format 1360x684.
+            local kitty_size=$(kitty icat --print-window-size)
+            pxwidth=${kitty_size%%x*}
+            pxheight=${kitty_size##*x}
+        else
+            pxwidth=0
+        fi
     fi
     # make space for display bar
     width=$(expr $width - 1)
-    height=$(expr $height - 1 )
-    if [[ "$terminal_dimensions" == "true" ]]; then
-        cell_height=$(echo "scale=0; $pxheight / $height" | bc -l) 
+    height=$(expr $height - 1)
+    if [[ "$pxwidth" -ne 0 ]]; then
+        cell_height=$(echo "scale=0; $pxheight / $height" | bc -l)
         pxheight=$[$pxheight - $cell_height]
     fi
 }
