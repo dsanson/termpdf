@@ -54,15 +54,28 @@ On Debian,
 ```.bash
 apt install ghostscript bc libtiff5 unrar imagemagick poppler-utils
 ```
+On Archlinux and its derivatives
 
-Download the `termpdf`, make it executable, and put it in your path:
+```.bash
+pacman -S bc poppler djvulibre ghostscript libtff unrar imagemagick
+```
+
+termpdf is also available in the [Arch User Repository](https://aur.archlinux.org/packages/termpdf-git/). You can install it using your favorite AUR helper program, which should also handle the dependencies, including `terminal_dimensions`. For example, using yay:
+
+```bash
+yay -S termpdf-git
+```
+
+Download the `termpdf` and `tpdfc` scripts, make them executable, and put them in your path:
 
 ```.bash
 git clone https://github.com/dsanson/termpdf
 cd termpdf
 chmod u+x termpdf
+chmod u+x tpdfc
 cd /usr/local/bin
 ln -s /path/to/termpdf
+ln -s /path/to/tpdfc
 ```
 
 Terminal Emulator
@@ -158,7 +171,7 @@ Here is a screenshot of the best results I can get using a version of xterm buil
 Installation
 ============
 
-`termpdf` is a bash script. Put it somewhere in your path and make sure it has
+`termpdf` and `tpdfc` are bash scripts. Put them somewhere in your path and make sure they have
 the appropriate permissions (i.e., `chmod u+x termpdf`).
 
 
