@@ -1,9 +1,9 @@
-kitty-pdf
+termpdf.py
 =========
 
 I decided to try again, in python, using pymupdf as a backend, and dropping support for iTerm2 and focusing just on kitty's more robust graphics support. The preliminary results are snappier, and it should be easy to add more powerful features:
 
-<https://github.com/dsanson/kitty-pdf>
+<https://github.com/dsanson/termpdf.py>
 
 termpdf
 =======
