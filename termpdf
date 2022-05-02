@@ -549,7 +549,7 @@ set_conversion_options() {
 function extract_pdf_page_to_png_gs() {
     current_page_pdf="${tmp_dir}/${1}${3}.pdf"
     if [[ ! -f "$current_page_pdf" ]]; then
-       pdfseparate -f "$3" -l "$3" "${1}.${2}" "${tmp_dir}/${1}%d.pdf"
+       pdfseparate -f "$3" -l "$3" "${1}.${2}" "${tmp_dir}/${1}%d.pdf" 2> /dev/null
     fi
     if [[ $pxwidth -ne 0 ]]; then
        get_pdf_page_dimensions "$current_page_pdf"
@@ -562,7 +562,7 @@ function extract_pdf_page_to_png_gs() {
     current_page_image="${tmp_dir}/${1}${3}${target_width}x${target_height}x${rotation}.png" 
     if [[ ! -f "$current_page_image" ]]; then
        gs_opts="$gs_opts -sDEVICE=png16m -dUseCropBox -r200 -dTextAlphaBits=4 -q"
-       gs $gs_opts -o "${tmp_dir}/compressed.png"  "$current_page_pdf"
+       gs $gs_opts -o "${tmp_dir}/compressed.png"  "$current_page_pdf" 2> /dev/null
        convert_opts="$convert_opts -define png:compression-level=0 -define png:compression-filter=0  -density 200"
        if [[ "$rotation" == 90 || "$rotation" == 180 ]]; then
            convert_opts="$convert_opts -rotate 180"
