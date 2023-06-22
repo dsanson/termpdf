@@ -10,7 +10,7 @@ fi
 ###########################################################################
 # termpdf is a barebones inline pdf and djvu viewer. It currently works
 # in iTerm 2.9 or later, Kitty, and (very badly) in terminals that support
-# libsixel,
+# libsixel, and the tty with w3m-imgcat.
 #
 # It is a ridiculous hack, but it usually works for me.
 ###########################################################################
@@ -270,6 +270,10 @@ function second_setup() {
             ;;
         linux*)
             guiviewer="xdg-open"
+            imgcat="w3m-img"
+            if ! type "w3m-img" > /dev/null; then
+                imgcat="imgcat"
+            fi
             ;;
         *)
             guiviewer="unknown"
@@ -864,6 +868,7 @@ function clihelp() {
 $(basename $0) <options> <file/directory>
   -d n, --depth N    % how deep to search directories for images
   -sixel             % use libsixel to (badly) display graphics     
+  -imgcat            % use w3m-imgcat to display graphics
   -kitty             % force using kitty to display graphics
   -iterm             % force using iterm to display graphics
   -k                 % list keyboard shortcuts
@@ -1401,6 +1406,9 @@ function extract_and_display_page() {
         "sixel")
             img2sixel -h $target_height -w $target_width -q full -b vt340color "$image"
             ;;
+        "imgcat")
+            $imgcat "$image"
+            ;;
         "iterm")
             tput cup 0 0 
             print_image_iterm "$image" 1 "$(base64 < "$image")" $width $(echo 'scale=0;'"$height" \* "$zoom" / 100 | bc -l)
@@ -1513,6 +1521,10 @@ while [[ "$1" == '-'* ]]; do
    case "$1" in
        -sixel|--sixel)
             protocol="sixel"
+            shift
+            ;;
+        -imgcat|--imgcat)
+            protocol="imgcat"
             shift
             ;;
         -kitty|--kitty)
