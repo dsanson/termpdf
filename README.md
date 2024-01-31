@@ -19,6 +19,7 @@ Right now, it runs in
 And has experimental support for
 
 -   [libsixel](https://github.com/saitoha/libsixel)
+-   The linux TTY
 
 It is a ridiculous hack---a bash script wrapped around some special terminal
 escape codes and a bunch of command line tools. But it works well enough for me to be useful.
@@ -175,6 +176,15 @@ Here is a screenshot of the best results I can get using a version of xterm buil
 
 ![sixel screenshot](screenshot_xterm.png)
 
+w3m-imgcat
+----------
+
+If you want to try out the experimental w3m-imgcat support, be sure you have `w3m-img` for debian or `w3m-imgcat` for arch installed.
+
+Here is a screenshot of the best results I can get using w3m-imgcat on linux 6.3.3:
+
+![TTY screenshot](screenshot_tty.png)
+
 Installation
 ============
 
@@ -190,6 +200,7 @@ $ termpdf -h
 termpdf <options> <file/directory>
   -d n, --depth N                    how deep to search directories for images
   -sixel                             use libsixel to (badly) display graphics     
+  -imgcat                            use w3m-imgcat to display graphics
   -kitty                             force using kitty to display graphics
   -iterm                             force using iterm to display graphics
   -k                                 list keyboard shortcuts
@@ -217,7 +228,7 @@ depth of `find`'s recursive search.
 
 By default, `termpdf` uses Kitty's image rendering if it is available, and
 otherwise tries to use iTerm's image rendering. You can override this behavior
-by specifying one of `-sixel`, `-kitty`, or `-iterm`.
+by specifying one of `-sixel`, `imgcat`, `-kitty`, or `-iterm`.
 
 Keyboard Shortcuts
 ------------------
