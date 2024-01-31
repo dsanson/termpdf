@@ -179,7 +179,7 @@ Here is a screenshot of the best results I can get using a version of xterm buil
 w3m-imgcat
 ----------
 
-If you want to try out the experimental w3m-imgcat support, be sure you have `w3m-img` for debian or `imgcat` for arch installed.
+If you want to try out the experimental w3m-imgcat support, be sure you have `w3m-img` for debian or `w3m-imgcat` for arch installed.
 
 Here is a screenshot of the best results I can get using w3m-imgcat on linux 6.3.3:
 
